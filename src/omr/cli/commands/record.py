@@ -74,8 +74,18 @@ def _create_status_panel(session: RecordingSession) -> Panel:
 
 @app.command("start")
 def start(
-    loopback: bool = typer.Option(False, "--loopback", "-l", help="Record system audio"),
-    mic: bool = typer.Option(False, "--mic", "-m", help="Record microphone"),
+    loopback: bool = typer.Option(
+        False, "--loopback", "-l", help="Include system audio", hidden=True
+    ),
+    mic: bool = typer.Option(
+        False, "--mic", "-m", help="Include microphone", hidden=True
+    ),
+    loopback_only: bool = typer.Option(
+        False, "--loopback-only", "-L", help="Record system audio only"
+    ),
+    mic_only: bool = typer.Option(
+        False, "--mic-only", "-M", help="Record microphone only"
+    ),
     output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
     mic_device: int | None = typer.Option(None, "--mic-device", help="Microphone device index"),
     loopback_device: int | None = typer.Option(
@@ -119,16 +129,34 @@ def start(
         aec_enabled = False
 
     # Determine recording mode
-    if loopback and mic:
+    # Priority: --loopback-only / --mic-only > -l -m > default (BOTH)
+    if loopback_only and mic_only:
+        console.print("[red]Error:[/red] Cannot use --loopback-only and --mic-only together.")
+        raise typer.Exit(1)
+    elif loopback_only:
+        mode = RecordingMode.LOOPBACK
+    elif mic_only:
+        mode = RecordingMode.MIC
+    elif loopback or mic:
+        # Legacy -l -m options
+        if loopback and mic:
+            mode = RecordingMode.BOTH
+        elif mic:
+            mode = RecordingMode.MIC
+        else:
+            mode = RecordingMode.LOOPBACK
+    else:
+        # Default: BOTH mode (mic + loopback)
         mode = RecordingMode.BOTH
-        # Show info about AEC status
+
+    # Show AEC status for BOTH mode
+    if mode == RecordingMode.BOTH:
         if aec_enabled:
             console.print(
                 "[cyan]Info:[/cyan] Acoustic Echo Cancellation (AEC) is enabled."
             )
             console.print()
         else:
-            # Warn about potential echo issues when using both mic and loopback
             console.print(
                 "[yellow]Warning:[/yellow] Using mic and loopback together may cause echo "
                 "if speakers are used."
@@ -138,14 +166,6 @@ def start(
                 "headphones to prevent microphone from picking up speaker audio.[/dim]"
             )
             console.print()
-    elif mic:
-        mode = RecordingMode.MIC
-    elif loopback:
-        mode = RecordingMode.LOOPBACK
-    else:
-        # Default to loopback
-        mode = RecordingMode.LOOPBACK
-        console.print("[dim]No mode specified, defaulting to system audio (loopback)[/dim]")
 
     # Parse output path - ensure WAV extension for recording when MP3 output requested
     output_path = Path(output) if output else None

@@ -47,8 +47,12 @@ def main(
 # Shortcut commands for convenience
 @app.command("start")
 def start_recording(
-    loopback: bool = typer.Option(False, "--loopback", "-l", help="Record system audio"),
-    mic: bool = typer.Option(False, "--mic", "-m", help="Record microphone"),
+    loopback_only: bool = typer.Option(
+        False, "--loopback-only", "-L", help="Record system audio only"
+    ),
+    mic_only: bool = typer.Option(
+        False, "--mic-only", "-M", help="Record microphone only"
+    ),
     output: str = typer.Option(None, "--output", "-o", help="Output file path"),
     mic_device: int = typer.Option(None, "--mic-device", help="Microphone device index"),
     loopback_device: int = typer.Option(
@@ -74,10 +78,12 @@ def start_recording(
         bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion")
     ] = False,
 ) -> None:
-    """Start recording audio. Shortcut for 'omr record start'."""
+    """Start recording audio (mic + system by default). Shortcut for 'omr record start'."""
     record.start(
-        loopback=loopback,
-        mic=mic,
+        loopback=False,
+        mic=False,
+        loopback_only=loopback_only,
+        mic_only=mic_only,
         output=output,
         mic_device=mic_device,
         loopback_device=loopback_device,
