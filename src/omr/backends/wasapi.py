@@ -324,7 +324,8 @@ class WasapiBackend:
         mic_rms_history: list[float] = []
         loopback_rms_history: list[float] = []
         agc_window = 50  # Number of chunks to average for stable gain
-        target_rms = 8000.0  # Target RMS level (~25% of 16-bit peak)
+        loopback_target_rms = 8000.0  # Target RMS level (~25% of 16-bit peak)
+        mic_target_rms = 12000.0  # Higher target for mic (~37% of 16-bit peak)
 
         def mic_reader_thread() -> None:
             """Thread to read from microphone."""
@@ -423,19 +424,19 @@ class WasapiBackend:
                             if len(loopback_rms_history) > agc_window:
                                 loopback_rms_history.pop(0)
 
-                        # Normalize mic to target level
+                        # Normalize mic to target level (higher target for mic)
                         if mic_rms_history:
                             avg_mic_rms = sum(mic_rms_history) / len(mic_rms_history)
                             if avg_mic_rms > 50:
-                                mic_gain = target_rms / avg_mic_rms
-                                mic_gain = max(0.5, min(6.0, mic_gain))
+                                mic_gain = mic_target_rms / avg_mic_rms
+                                mic_gain = max(0.5, min(8.0, mic_gain))
                                 mic_chunk = apply_gain(mic_chunk, mic_gain)
 
                         # Normalize loopback to target level
                         if loopback_rms_history:
                             avg_loopback_rms = sum(loopback_rms_history) / len(loopback_rms_history)
                             if avg_loopback_rms > 50:
-                                loopback_gain = target_rms / avg_loopback_rms
+                                loopback_gain = loopback_target_rms / avg_loopback_rms
                                 loopback_gain = max(0.5, min(6.0, loopback_gain))
                                 loopback_chunk = apply_gain(loopback_chunk, loopback_gain)
 
