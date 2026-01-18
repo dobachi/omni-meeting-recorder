@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md) | English
 
-A Windows CLI tool for recording online meeting audio. Capture both remote participants' voices (system audio) and your own voice (microphone) simultaneously, even when using headphones.
+A Windows CLI tool for recording online meeting audio. Capture both remote participants' voices (system audio) and your own voice (microphone) simultaneously, even when using speakers or headphones.
 
 ## Features
 
@@ -246,6 +246,17 @@ omr start --no-aec -o meeting.mp3
 ```
 
 **Note**: For best results, use headphones when possible. AEC works well but headphones provide the cleanest audio.
+
+## Automatic Volume Normalization
+
+Microphone and system audio often have significantly different volume levels. For example, if mic input is quiet while system audio is loud, the recorded audio will be unbalanced.
+
+**Solution**: Automatic Gain Control (AGC) is enabled by default, normalizing both audio sources to a target level (~25% of 16-bit peak).
+
+- Continuously measures RMS (Root Mean Square) of both mic and system audio
+- Calculates average level from recent audio chunks
+- Normalizes both sources to the same target level
+- Gain is automatically adjusted within 0.5x to 6.0x range
 
 ## Development
 
