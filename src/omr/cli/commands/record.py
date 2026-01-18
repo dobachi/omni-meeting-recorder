@@ -97,7 +97,7 @@ def start(
     # Check lameenc availability for MP3 format
     if output_format == AudioFormat.MP3 and not is_mp3_available():
         console.print("[red]Error:[/red] lameenc is required for MP3 output.")
-        console.print("[dim]Install with: uv sync --extra mp3[/dim]")
+        console.print("[dim]Install with: uv sync[/dim]")
         raise typer.Exit(1)
 
     # Determine recording mode
