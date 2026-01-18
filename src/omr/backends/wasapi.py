@@ -196,7 +196,7 @@ class WasapiBackend:
     ) -> None:
         """Record audio from both mic and loopback devices to a single WAV file.
 
-        Uses synchronous recording with per-sample mixing for reliable audio.
+        Uses parallel thread reading for proper timing synchronization.
 
         Args:
             mic_device: Microphone device
@@ -207,6 +207,7 @@ class WasapiBackend:
             on_chunk: Callback for each output chunk
         """
         import struct
+        from queue import Empty, Queue
 
         import pyaudiowpatch as pyaudio
 
@@ -217,8 +218,8 @@ class WasapiBackend:
         mic_sample_rate = int(mic_device.default_sample_rate)
         loopback_sample_rate = int(loopback_device.default_sample_rate)
 
-        # Output sample rate is the higher of the two
-        output_sample_rate = max(mic_sample_rate, loopback_sample_rate)
+        # Output uses loopback's sample rate as master
+        output_sample_rate = loopback_sample_rate
 
         # Create streams with their native sample rates
         mic_stream = self.create_stream(mic_device)
@@ -229,9 +230,18 @@ class WasapiBackend:
 
         sample_width = self._pyaudio.get_sample_size(pyaudio.paInt16)
 
-        # Accumulators for resampling
-        mic_buffer: list[int] = []
-        loopback_buffer: list[int] = []
+        # Thread-safe queues for audio data
+        mic_queue: Queue[list[int]] = Queue(maxsize=100)
+        loopback_queue: Queue[list[int]] = Queue(maxsize=100)
+
+        def to_mono(samples: list[int], channels: int) -> list[int]:
+            """Convert to mono."""
+            if channels == 1:
+                return samples
+            mono = []
+            for i in range(0, len(samples) - channels + 1, channels):
+                mono.append(sum(samples[i:i+channels]) // channels)
+            return mono
 
         def resample_simple(samples: list[int], from_rate: int, to_rate: int) -> list[int]:
             """Simple resampling using linear interpolation."""
@@ -253,38 +263,51 @@ class WasapiBackend:
                 resampled.append(int(val))
             return resampled
 
-        def to_mono(samples: list[int], channels: int) -> list[int]:
-            """Convert to mono."""
-            if channels == 1:
-                return samples
-            mono = []
-            for i in range(0, len(samples) - channels + 1, channels):
-                mono.append(sum(samples[i:i+channels]) // channels)
-            return mono
+        def mic_reader_thread() -> None:
+            """Thread to read from microphone."""
+            while not stop_event.is_set():
+                try:
+                    data = mic_stream.read()
+                    samples = list(struct.unpack(f"<{len(data) // 2}h", data))
+                    mono = to_mono(samples, mic_channels)
+                    # Resample to output rate
+                    resampled = resample_simple(mono, mic_sample_rate, output_sample_rate)
+                    try:
+                        mic_queue.put_nowait(resampled)
+                    except Exception:
+                        pass  # Drop if queue full
+                except Exception:
+                    if stop_event.is_set():
+                        break
 
-        def read_and_process_mic() -> list[int]:
-            """Read from mic and return resampled mono samples."""
-            try:
-                data = mic_stream.read()
-                samples = list(struct.unpack(f"<{len(data) // 2}h", data))
-                mono = to_mono(samples, mic_channels)
-                return resample_simple(mono, mic_sample_rate, output_sample_rate)
-            except Exception:
-                return []
+        def loopback_reader_thread() -> None:
+            """Thread to read from loopback."""
+            while not stop_event.is_set():
+                try:
+                    data = loopback_stream.read()
+                    samples = list(struct.unpack(f"<{len(data) // 2}h", data))
+                    mono = to_mono(samples, loopback_channels)
+                    try:
+                        loopback_queue.put_nowait(mono)
+                    except Exception:
+                        pass  # Drop if queue full
+                except Exception:
+                    if stop_event.is_set():
+                        break
 
-        def read_and_process_loopback() -> list[int]:
-            """Read from loopback and return resampled mono samples."""
-            try:
-                data = loopback_stream.read()
-                samples = list(struct.unpack(f"<{len(data) // 2}h", data))
-                mono = to_mono(samples, loopback_channels)
-                return resample_simple(mono, loopback_sample_rate, output_sample_rate)
-            except Exception:
-                return []
+        # Buffers for accumulating samples
+        mic_buffer: list[int] = []
+        loopback_buffer: list[int] = []
 
         try:
             mic_stream.open()
             loopback_stream.open()
+
+            # Start reader threads
+            mic_thread = threading.Thread(target=mic_reader_thread, daemon=True)
+            loopback_thread = threading.Thread(target=loopback_reader_thread, daemon=True)
+            mic_thread.start()
+            loopback_thread.start()
 
             with wave.open(str(output_path), "wb") as wf:
                 wf.setnchannels(2)  # Stereo output
@@ -292,25 +315,30 @@ class WasapiBackend:
                 wf.setframerate(output_sample_rate)
 
                 while not stop_event.is_set():
-                    # Read from both sources
-                    mic_samples = read_and_process_mic()
-                    loopback_samples = read_and_process_loopback()
+                    # Drain queues into buffers
+                    while True:
+                        try:
+                            mic_buffer.extend(mic_queue.get_nowait())
+                        except Empty:
+                            break
 
-                    mic_buffer.extend(mic_samples)
-                    loopback_buffer.extend(loopback_samples)
+                    while True:
+                        try:
+                            loopback_buffer.extend(loopback_queue.get_nowait())
+                        except Empty:
+                            break
 
-                    # Use loopback as master clock - output whenever loopback has data
+                    # Output based on loopback buffer (master clock)
                     if loopback_buffer:
                         chunk_size = len(loopback_buffer)
-                        loopback_chunk = loopback_buffer[:chunk_size]
+                        loopback_chunk = loopback_buffer[:]
                         loopback_buffer.clear()
 
-                        # Take matching amount from mic buffer (or pad with zeros)
+                        # Take matching amount from mic buffer
                         if len(mic_buffer) >= chunk_size:
                             mic_chunk = mic_buffer[:chunk_size]
                             mic_buffer[:] = mic_buffer[chunk_size:]
                         else:
-                            # Use what we have and pad with zeros
                             mic_chunk = mic_buffer[:] + [0] * (chunk_size - len(mic_buffer))
                             mic_buffer.clear()
 
@@ -321,20 +349,25 @@ class WasapiBackend:
                             loop_val = loopback_chunk[i] if i < len(loopback_chunk) else 0
 
                             if stereo_split:
-                                # Left = mic, Right = loopback
                                 output_samples.extend([mic_val, loop_val])
                             else:
-                                # Mix both channels
                                 mixed = (mic_val + loop_val) // 2
                                 output_samples.extend([mixed, mixed])
 
-                        # Clamp and write
                         clamped = [max(-32768, min(32767, s)) for s in output_samples]
                         output_data = struct.pack(f"<{len(clamped)}h", *clamped)
                         wf.writeframes(output_data)
 
                         if on_chunk:
                             on_chunk(output_data)
+                    else:
+                        # No loopback data yet, small sleep to avoid busy loop
+                        import time
+                        time.sleep(0.001)
+
+            # Wait for threads to finish
+            mic_thread.join(timeout=1.0)
+            loopback_thread.join(timeout=1.0)
 
         finally:
             mic_stream.close()
