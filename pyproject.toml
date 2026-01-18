@@ -1,0 +1,65 @@
+[project]
+name = "omni-meeting-recorder"
+version = "0.1.0"
+description = "CLI tool for recording online meeting audio (mic + system sound)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "dobachi" }
+]
+keywords = ["audio", "recording", "meeting", "wasapi", "loopback"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
+]
+dependencies = [
+    "PyAudioWPatch>=0.2.12; sys_platform == 'win32'",
+    "typer>=0.9.0",
+    "pydantic>=2.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+omr = "omr.cli.main:app"
+
+[project.optional-dependencies]
+flac = ["pyflac>=2.2.0"]
+mp3 = ["lameenc>=1.6.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/omr"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
