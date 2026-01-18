@@ -83,13 +83,21 @@ pip install git+https://github.com/dobachi/omni-meeting-recorder.git
 omr --version
 ```
 
+## 使い方
+
+```bash
+omr start
+```
+
+これだけ！`Ctrl+C`で停止。出力: `recording_YYYYMMDD_HHMMSS.mp3`
+
 ## クイックスタート
 
 ```bash
 # デバイス一覧を表示
 omr devices
 
-# マイク＋システム音声を録音（デフォルト、AEC・自動音量正規化有効）
+# ファイル名を指定して録音
 omr start -o meeting.mp3
 
 # システム音声のみ録音

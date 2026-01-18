@@ -83,13 +83,21 @@ pip install git+https://github.com/dobachi/omni-meeting-recorder.git
 omr --version
 ```
 
+## Usage
+
+```bash
+omr start
+```
+
+That's it! Press `Ctrl+C` to stop. Output: `recording_YYYYMMDD_HHMMSS.mp3`
+
 ## Quick Start
 
 ```bash
 # List available devices
 omr devices
 
-# Record mic + system audio (default, with AEC and auto-normalization)
+# Record with custom filename
 omr start -o meeting.mp3
 
 # Record system audio only
