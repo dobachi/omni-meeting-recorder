@@ -12,14 +12,46 @@ Windows向けオンライン会議の音声録音CLIツール。イヤホン使�
 ## Requirements
 
 - Windows 10/11
-- Python 3.11+
+- Python 3.11以上
 - uv（推奨）またはpip
 
-## Installation
+## Windows環境セットアップ
 
-### uvを使用（推奨）
+### 1. Pythonのインストール
 
-```bash
+Python 3.11以上がインストールされていない場合:
+
+1. [Python公式サイト](https://www.python.org/downloads/)からWindows用インストーラをダウンロード
+2. インストーラを実行し、**「Add Python to PATH」にチェック**を入れてインストール
+3. PowerShellまたはコマンドプロンプトで確認:
+   ```powershell
+   python --version
+   # Python 3.11.x 以上が表示されればOK
+   ```
+
+### 2. uvのインストール（推奨）
+
+uvは高速なPythonパッケージマネージャーです。
+
+**PowerShellで実行:**
+```powershell
+# uvをインストール
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# インストール確認
+uv --version
+```
+
+または、pipでインストール:
+```powershell
+pip install uv
+```
+
+### 3. omrのインストール
+
+#### 方法A: GitHubからclone（開発者向け）
+
+```powershell
 # リポジトリをclone
 git clone https://github.com/dobachi/omni-meeting-recorder.git
 cd omni-meeting-recorder
@@ -27,15 +59,106 @@ cd omni-meeting-recorder
 # 依存関係をインストール
 uv sync
 
-# 実行
+# 動作確認
+uv run omr --version
 uv run omr --help
 ```
 
-### pipを使用
+#### 方法B: pipで直接インストール（ユーザー向け）
 
-```bash
+```powershell
+# PyPIからインストール（公開後）
 pip install omni-meeting-recorder
-omr --help
+
+# または、GitHubから直接インストール
+pip install git+https://github.com/dobachi/omni-meeting-recorder.git
+
+# 動作確認
+omr --version
+```
+
+## 動作テスト
+
+### Step 1: デバイス一覧の確認
+
+```powershell
+# uvでインストールした場合
+uv run omr devices
+
+# pipでインストールした場合
+omr devices
+```
+
+**期待される出力例:**
+```
+                    Recording Devices
+┏━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Index  ┃ Type     ┃ Name                           ┃ Channels   ┃ Sample Rate  ┃ Default  ┃
+┡━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ 0      │ MIC      │ マイク (Realtek Audio)          │     2      │    44100 Hz  │    *     │
+│ 3      │ LOOP     │ スピーカー (Realtek Audio)      │     2      │    48000 Hz  │          │
+└────────┴──────────┴────────────────────────────────┴────────────┴──────────────┴──────────┘
+```
+
+- **MIC**: マイクデバイス
+- **LOOP**: Loopbackデバイス（システム音声をキャプチャ可能）
+- **\***: デフォルトデバイス
+
+### Step 2: システム音声（Loopback）録音テスト
+
+1. YouTubeなどで音声を再生
+2. 録音開始:
+   ```powershell
+   uv run omr start --loopback
+   ```
+3. 数秒待ってから `Ctrl+C` で停止
+4. 生成された `recording_YYYYMMDD_HHMMSS.wav` を再生して確認
+
+### Step 3: マイク録音テスト
+
+1. マイクに向かって話しながら:
+   ```powershell
+   uv run omr start --mic
+   ```
+2. `Ctrl+C` で停止
+3. 生成されたWAVファイルを再生して確認
+
+### Step 4: 特定デバイスを指定して録音
+
+```powershell
+# デバイスインデックスを指定（omr devicesで確認した番号を使用）
+uv run omr start --loopback --loopback-device 3
+uv run omr start --mic --mic-device 0
+
+# 出力ファイル名を指定
+uv run omr start --loopback --output meeting_audio.wav
+```
+
+## トラブルシューティング
+
+### 「No devices found」と表示される
+
+- Windowsのサウンド設定で、オーディオデバイスが有効になっているか確認
+- 「サウンドの設定」→「サウンドコントロールパネル」で無効なデバイスを有効化
+
+### Loopbackデバイスが表示されない
+
+- 出力デバイス（スピーカー/イヤホン）が接続・有効になっているか確認
+- WASAPI対応のオーディオドライバがインストールされているか確認
+
+### 録音ファイルが無音
+
+- 録音中にシステム音声が実際に再生されているか確認
+- `omr devices --all` で正しいデバイスを選択しているか確認
+- 別のLoopbackデバイスを試す: `--loopback-device <index>`
+
+### PyAudioWPatchのインストールエラー
+
+PyAudioWPatchはWindowsのみ対応しています。Linux/macOSではテストのみ実行可能です。
+
+```powershell
+# 手動でPyAudioWPatchをインストール
+pip install PyAudioWPatch
 ```
 
 ## Quick Start
