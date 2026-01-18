@@ -12,7 +12,9 @@ from typing import Any
 class MixerConfig:
     """Configuration for audio mixing."""
 
-    sample_rate: int = 48000
+    sample_rate: int = 48000  # Output sample rate
+    mic_sample_rate: int = 48000  # Mic input sample rate
+    loopback_sample_rate: int = 48000  # Loopback input sample rate
     channels: int = 2  # Output channels (stereo)
     bit_depth: int = 16
     chunk_size: int = 1024
@@ -128,6 +130,16 @@ class AudioMixer:
         mic_mono = self._to_mono(mic_samples)
         loopback_mono = self._to_mono(loopback_samples)
 
+        # Resample to output sample rate if needed
+        if self._config.mic_sample_rate != self._config.sample_rate:
+            mic_mono = self._resample(
+                mic_mono, self._config.mic_sample_rate, self._config.sample_rate
+            )
+        if self._config.loopback_sample_rate != self._config.sample_rate:
+            loopback_mono = self._resample(
+                loopback_mono, self._config.loopback_sample_rate, self._config.sample_rate
+            )
+
         # Pad or trim to chunk size
         mic_mono = self._normalize_length(mic_mono, chunk_samples)
         loopback_mono = self._normalize_length(loopback_mono, chunk_samples)
@@ -183,3 +195,40 @@ class AudioMixer:
             return samples[:target_length]
         # Pad with zeros
         return samples + [0] * (target_length - len(samples))
+
+    def _resample(self, samples: list[int], from_rate: int, to_rate: int) -> list[int]:
+        """Resample audio using linear interpolation.
+
+        Args:
+            samples: Input samples
+            from_rate: Source sample rate
+            to_rate: Target sample rate
+
+        Returns:
+            Resampled audio samples
+        """
+        if from_rate == to_rate or not samples:
+            return samples
+
+        ratio = to_rate / from_rate
+        new_length = int(len(samples) * ratio)
+
+        if new_length == 0:
+            return []
+
+        resampled = []
+        for i in range(new_length):
+            # Calculate position in original samples
+            pos = i / ratio
+            idx = int(pos)
+            frac = pos - idx
+
+            if idx + 1 < len(samples):
+                # Linear interpolation
+                val = samples[idx] * (1 - frac) + samples[idx + 1] * frac
+            else:
+                val = samples[idx] if idx < len(samples) else 0
+
+            resampled.append(int(val))
+
+        return resampled

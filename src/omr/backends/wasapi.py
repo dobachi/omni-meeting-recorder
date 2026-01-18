@@ -211,19 +211,22 @@ class WasapiBackend:
         if self._pyaudio is None:
             self.initialize()
 
-        # Use the higher sample rate between the two devices
-        output_sample_rate = max(
-            int(mic_device.default_sample_rate),
-            int(loopback_device.default_sample_rate),
-        )
+        # Use each device's native sample rate for best compatibility
+        mic_sample_rate = int(mic_device.default_sample_rate)
+        loopback_sample_rate = int(loopback_device.default_sample_rate)
 
-        # Create streams
-        mic_stream = self.create_stream(mic_device, sample_rate=output_sample_rate)
-        loopback_stream = self.create_stream(loopback_device, sample_rate=output_sample_rate)
+        # Output sample rate is the higher of the two
+        output_sample_rate = max(mic_sample_rate, loopback_sample_rate)
 
-        # Create mixer
+        # Create streams with their native sample rates
+        mic_stream = self.create_stream(mic_device)
+        loopback_stream = self.create_stream(loopback_device)
+
+        # Create mixer with sample rate info for resampling
         mixer_config = MixerConfig(
             sample_rate=output_sample_rate,
+            mic_sample_rate=mic_sample_rate,
+            loopback_sample_rate=loopback_sample_rate,
             channels=2,  # Stereo output
             chunk_size=self._settings.chunk_size,
             stereo_split=stereo_split,
