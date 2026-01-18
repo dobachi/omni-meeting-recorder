@@ -103,6 +103,16 @@ def start(
     # Determine recording mode
     if loopback and mic:
         mode = RecordingMode.BOTH
+        # Warn about potential echo issues when using both mic and loopback
+        console.print(
+            "[yellow]Warning:[/yellow] Using mic and loopback together may cause echo "
+            "if speakers are used."
+        )
+        console.print(
+            "[dim]Recommendation: Use headphones to prevent microphone from picking up "
+            "speaker audio.[/dim]"
+        )
+        console.print()
     elif mic:
         mode = RecordingMode.MIC
     elif loopback:

@@ -215,6 +215,23 @@ PyAudioWPatch only supports Windows. On Linux/macOS, only tests can be run.
 pip install PyAudioWPatch
 ```
 
+## Known Limitations
+
+### Echo in Dual Recording Mode (Mic + Loopback)
+
+When recording with both `--mic` and `--loopback` options while using **speakers** (not headphones), the microphone may pick up audio from the speakers. This results in echo or doubled audio in the recording.
+
+**Workaround**: Use headphones instead of speakers when using dual recording mode. This prevents the microphone from capturing the speaker output.
+
+```powershell
+# The CLI will display a warning when using both options
+uv run omr start --mic --loopback
+# Warning: Using mic and loopback together may cause echo if speakers are used.
+# Recommendation: Use headphones to prevent microphone from picking up speaker audio.
+```
+
+See [Issue #6](https://github.com/dobachi/omni-meeting-recorder/issues/6) for more details and future plans for software-based echo cancellation.
+
 ## Development
 
 ### Setup Development Environment

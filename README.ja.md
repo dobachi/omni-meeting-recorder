@@ -215,6 +215,23 @@ PyAudioWPatchはWindowsのみ対応しています。Linux/macOSではテスト�
 pip install PyAudioWPatch
 ```
 
+## 既知の制限事項
+
+### 同時録音時のエコー問題（マイク + Loopback）
+
+`--mic` と `--loopback` オプションを同時に使用し、**スピーカー**（ヘッドホンではなく）を使用している場合、マイクがスピーカーからの音声を拾ってしまうことがあります。これにより、録音にエコーや音声の重複が発生します。
+
+**対処方法**: 同時録音モードを使用する際は、スピーカーの代わりにヘッドホンを使用してください。これにより、マイクがスピーカー出力をキャプチャするのを防ぐことができます。
+
+```powershell
+# 両方のオプションを使用すると警告が表示されます
+uv run omr start --mic --loopback
+# Warning: Using mic and loopback together may cause echo if speakers are used.
+# Recommendation: Use headphones to prevent microphone from picking up speaker audio.
+```
+
+詳細とソフトウェアベースのエコーキャンセルの将来計画については、[Issue #6](https://github.com/dobachi/omni-meeting-recorder/issues/6) を参照してください。
+
 ## 開発
 
 ### 開発環境セットアップ
