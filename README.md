@@ -221,6 +221,8 @@ omr start -b 192               # MP3 bitrate 192kbps (default: 128)
 | `-b`, `--bitrate` | MP3 bitrate in kbps (default: 128) |
 | `--mic-device` | Microphone device index |
 | `--loopback-device` | Loopback device index |
+| `--mic-gain` | Microphone gain multiplier (default: 1.0) |
+| `--loopback-gain` | System audio gain multiplier (default: 1.0) |
 
 ## Troubleshooting
 

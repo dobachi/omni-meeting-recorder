@@ -202,6 +202,8 @@ class WasapiBackend:
         stop_event: threading.Event,
         stereo_split: bool = True,
         aec_enabled: bool = False,
+        mic_gain: float = 1.0,
+        loopback_gain: float = 1.0,
         on_chunk: Callable[[bytes], None] | None = None,
     ) -> None:
         """Record audio from both mic and loopback devices to a single WAV file.
@@ -215,6 +217,8 @@ class WasapiBackend:
             stop_event: Event to signal recording stop
             stereo_split: If True, left=mic, right=system. If False, mix both.
             aec_enabled: If True, apply acoustic echo cancellation to mic signal.
+            mic_gain: Microphone gain multiplier (applied after AGC).
+            loopback_gain: System audio gain multiplier (applied after AGC).
             on_chunk: Callback for each output chunk
         """
         import struct
@@ -428,17 +432,21 @@ class WasapiBackend:
                         if mic_rms_history:
                             avg_mic_rms = sum(mic_rms_history) / len(mic_rms_history)
                             if avg_mic_rms > 50:
-                                mic_gain = mic_target_rms / avg_mic_rms
-                                mic_gain = max(0.5, min(8.0, mic_gain))
-                                mic_chunk = apply_gain(mic_chunk, mic_gain)
+                                auto_mic_gain = mic_target_rms / avg_mic_rms
+                                auto_mic_gain = max(0.5, min(8.0, auto_mic_gain))
+                                # Apply user gain multiplier
+                                total_mic_gain = auto_mic_gain * mic_gain
+                                mic_chunk = apply_gain(mic_chunk, total_mic_gain)
 
                         # Normalize loopback to target level
                         if loopback_rms_history:
                             avg_loopback_rms = sum(loopback_rms_history) / len(loopback_rms_history)
                             if avg_loopback_rms > 50:
-                                loopback_gain = loopback_target_rms / avg_loopback_rms
-                                loopback_gain = max(0.5, min(6.0, loopback_gain))
-                                loopback_chunk = apply_gain(loopback_chunk, loopback_gain)
+                                auto_loopback_gain = loopback_target_rms / avg_loopback_rms
+                                auto_loopback_gain = max(0.5, min(6.0, auto_loopback_gain))
+                                # Apply user gain multiplier
+                                total_loopback_gain = auto_loopback_gain * loopback_gain
+                                loopback_chunk = apply_gain(loopback_chunk, total_loopback_gain)
 
                         # Create stereo output
                         output_samples = []

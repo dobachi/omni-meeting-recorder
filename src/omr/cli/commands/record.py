@@ -101,6 +101,12 @@ def start(
         "--aec/--no-aec",
         help="Enable acoustic echo cancellation (requires pyaec)",
     ),
+    mic_gain: Annotated[
+        float, typer.Option("--mic-gain", help="Microphone gain multiplier (default: 1.0)")
+    ] = 1.0,
+    loopback_gain: Annotated[
+        float, typer.Option("--loopback-gain", help="System audio gain multiplier (default: 1.0)")
+    ] = 1.0,
     output_format: Annotated[
         AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
     ] = AudioFormat.MP3,
@@ -189,6 +195,8 @@ def start(
             loopback_device_index=loopback_device,
             stereo_split=stereo_split,
             aec_enabled=aec_enabled,
+            mic_gain=mic_gain,
+            loopback_gain=loopback_gain,
         )
 
         # Show device info

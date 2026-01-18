@@ -221,6 +221,8 @@ omr start -b 192               # MP3ビットレート 192kbps（デフォルト
 | `-b`, `--bitrate` | MP3ビットレート（kbps、デフォルト: 128） |
 | `--mic-device` | マイクデバイスのインデックス |
 | `--loopback-device` | Loopbackデバイスのインデックス |
+| `--mic-gain` | マイクゲイン倍率（デフォルト: 1.0） |
+| `--loopback-gain` | システム音声ゲイン倍率（デフォルト: 1.0） |
 
 ## トラブルシューティング
 

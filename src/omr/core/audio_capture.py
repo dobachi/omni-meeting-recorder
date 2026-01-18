@@ -32,6 +32,8 @@ class RecordingSession:
     loopback_device: AudioDevice | None = None
     stereo_split: bool = True  # For BOTH mode: True=left:mic/right:system
     aec_enabled: bool = False  # For BOTH mode: Enable acoustic echo cancellation
+    mic_gain: float = 1.0  # Microphone gain multiplier
+    loopback_gain: float = 1.0  # System audio gain multiplier
     state: RecordingState = field(default_factory=RecordingState)
     _stop_event: threading.Event = field(default_factory=threading.Event)
     _recording_thread: threading.Thread | None = None
@@ -90,6 +92,8 @@ class AudioCapture(AudioCaptureBase):
         loopback_device_index: int | None = None,
         stereo_split: bool = True,
         aec_enabled: bool = False,
+        mic_gain: float = 1.0,
+        loopback_gain: float = 1.0,
     ) -> RecordingSession:
         """Create a new recording session.
 
@@ -100,6 +104,8 @@ class AudioCapture(AudioCaptureBase):
             loopback_device_index: Specific loopback device index (default if None)
             stereo_split: For BOTH mode - True: left=mic, right=system. False: mixed.
             aec_enabled: For BOTH mode - Enable acoustic echo cancellation.
+            mic_gain: Microphone gain multiplier.
+            loopback_gain: System audio gain multiplier.
         """
         # Generate output filename if not provided
         if output_path is None:
@@ -138,6 +144,8 @@ class AudioCapture(AudioCaptureBase):
             loopback_device=loopback_device,
             stereo_split=stereo_split,
             aec_enabled=aec_enabled,
+            mic_gain=mic_gain,
+            loopback_gain=loopback_gain,
         )
 
     def start_recording(self, session: RecordingSession) -> None:
@@ -179,6 +187,8 @@ class AudioCapture(AudioCaptureBase):
                             stop_event=session.stop_event,
                             stereo_split=session.stereo_split,
                             aec_enabled=session.aec_enabled,
+                            mic_gain=session.mic_gain,
+                            loopback_gain=session.loopback_gain,
                             on_chunk=on_chunk,
                         )
                     else:

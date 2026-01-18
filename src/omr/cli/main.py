@@ -68,6 +68,12 @@ def start_recording(
         "--aec/--no-aec",
         help="Enable acoustic echo cancellation (requires pyaec)",
     ),
+    mic_gain: Annotated[
+        float, typer.Option("--mic-gain", help="Microphone gain multiplier (default: 1.0)")
+    ] = 1.0,
+    loopback_gain: Annotated[
+        float, typer.Option("--loopback-gain", help="System audio gain multiplier (default: 1.0)")
+    ] = 1.0,
     output_format: Annotated[
         AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
     ] = AudioFormat.MP3,
@@ -89,6 +95,8 @@ def start_recording(
         loopback_device=loopback_device,
         stereo_split=stereo_split,
         aec=aec,
+        mic_gain=mic_gain,
+        loopback_gain=loopback_gain,
         output_format=output_format,
         bitrate=bitrate,
         keep_wav=keep_wav,
