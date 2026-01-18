@@ -1,6 +1,6 @@
 [project]
 name = "omni-meeting-recorder"
-version = "0.2.0"
+version = "0.2.1"
 description = "CLI tool for recording online meeting audio (mic + system sound)"
 readme = "README.md"
 requires-python = ">=3.11"
