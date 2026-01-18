@@ -91,6 +91,12 @@ omr start
 
 That's it! Press `Ctrl+C` to stop. Output: `recording_YYYYMMDD_HHMMSS.mp3`
 
+### Try Without Installing
+
+```bash
+uvx --from git+https://github.com/dobachi/omni-meeting-recorder.git omr start
+```
+
 ## Quick Start
 
 ```bash
