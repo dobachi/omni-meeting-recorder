@@ -15,6 +15,8 @@ class MixerConfig:
     sample_rate: int = 48000  # Output sample rate
     mic_sample_rate: int = 48000  # Mic input sample rate
     loopback_sample_rate: int = 48000  # Loopback input sample rate
+    mic_channels: int = 1  # Mic input channels
+    loopback_channels: int = 2  # Loopback input channels
     channels: int = 2  # Output channels (stereo)
     bit_depth: int = 16
     chunk_size: int = 1024
@@ -126,9 +128,9 @@ class AudioMixer:
         mic_samples = self._bytes_to_samples(mic_data) if mic_data else []
         loopback_samples = self._bytes_to_samples(loopback_data) if loopback_data else []
 
-        # Normalize to mono (average channels if stereo)
-        mic_mono = self._to_mono(mic_samples)
-        loopback_mono = self._to_mono(loopback_samples)
+        # Convert to mono based on actual channel count
+        mic_mono = self._to_mono_with_channels(mic_samples, self._config.mic_channels)
+        loopback_mono = self._to_mono_with_channels(loopback_samples, self._config.loopback_channels)
 
         # Resample to output sample rate if needed
         if self._config.mic_sample_rate != self._config.sample_rate:
@@ -175,7 +177,7 @@ class AudioMixer:
         return struct.pack(f"<{len(clamped)}h", *clamped)
 
     def _to_mono(self, samples: list[int]) -> list[int]:
-        """Convert stereo samples to mono by averaging channels."""
+        """Convert stereo samples to mono by averaging channels (legacy method)."""
         if not samples:
             return []
         # Assume input might be stereo (even number of samples)
@@ -188,6 +190,39 @@ class AudioMixer:
                 mono.append((left + right) // 2)
             return mono
         return samples
+
+    def _to_mono_with_channels(self, samples: list[int], channels: int) -> list[int]:
+        """Convert samples to mono based on known channel count.
+
+        Args:
+            samples: Input samples (interleaved if stereo)
+            channels: Number of input channels (1=mono, 2=stereo)
+
+        Returns:
+            Mono samples
+        """
+        if not samples:
+            return []
+
+        if channels == 1:
+            # Already mono
+            return samples
+        elif channels == 2:
+            # Stereo: average left and right channels
+            mono = []
+            for i in range(0, len(samples) - 1, 2):
+                left = samples[i]
+                right = samples[i + 1]
+                mono.append((left + right) // 2)
+            return mono
+        else:
+            # Multi-channel: average all channels
+            mono = []
+            for i in range(0, len(samples), channels):
+                chunk = samples[i:i + channels]
+                if chunk:
+                    mono.append(sum(chunk) // len(chunk))
+            return mono
 
     def _normalize_length(self, samples: list[int], target_length: int) -> list[int]:
         """Normalize sample list to target length."""

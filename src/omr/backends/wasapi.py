@@ -222,11 +222,17 @@ class WasapiBackend:
         mic_stream = self.create_stream(mic_device)
         loopback_stream = self.create_stream(loopback_device)
 
-        # Create mixer with sample rate info for resampling
+        # Get actual channel counts from streams
+        mic_channels = mic_stream._config.channels
+        loopback_channels = loopback_stream._config.channels
+
+        # Create mixer with sample rate and channel info
         mixer_config = MixerConfig(
             sample_rate=output_sample_rate,
             mic_sample_rate=mic_sample_rate,
             loopback_sample_rate=loopback_sample_rate,
+            mic_channels=mic_channels,
+            loopback_channels=loopback_channels,
             channels=2,  # Stereo output
             chunk_size=self._settings.chunk_size,
             stereo_split=stereo_split,
