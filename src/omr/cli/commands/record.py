@@ -112,8 +112,13 @@ def start(
         mode = RecordingMode.LOOPBACK
         console.print("[dim]No mode specified, defaulting to system audio (loopback)[/dim]")
 
-    # Parse output path
+    # Parse output path - ensure WAV extension for recording when MP3 output requested
     output_path = Path(output) if output else None
+    desired_mp3_path: Path | None = None
+    if output_format == AudioFormat.MP3 and output_path:
+        if output_path.suffix.lower() == ".mp3":
+            desired_mp3_path = output_path
+            output_path = output_path.with_suffix(".wav")
 
     audio_capture: AudioCapture | None = None
     session: RecordingSession | None = None
@@ -177,11 +182,11 @@ def start(
         final_output: Path | str | None = state.output_file
         if output_format == AudioFormat.MP3 and state.output_file:
             wav_path = state.output_file
-            mp3_path = wav_path.with_suffix(".mp3")
+            mp3_path = desired_mp3_path or wav_path.with_suffix(".mp3")
             console.print("[yellow]Converting to MP3...[/yellow]")
 
             if encode_to_mp3(wav_path, mp3_path, bitrate):
-                final_output = str(mp3_path)
+                final_output = mp3_path
                 if not keep_wav:
                     wav_path.unlink()
                     console.print("[dim]Removed temporary WAV file[/dim]")
