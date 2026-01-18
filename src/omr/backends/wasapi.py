@@ -300,6 +300,31 @@ class WasapiBackend:
                 resampled.append(int(val))
             return resampled
 
+        def calc_rms(samples: list[int]) -> float:
+            """Calculate RMS (Root Mean Square) of samples."""
+            if not samples:
+                return 0.0
+            sum_sq = sum(s * s for s in samples)
+            return float((sum_sq / len(samples)) ** 0.5)
+
+        def apply_gain(samples: list[int], gain: float) -> list[int]:
+            """Apply gain to samples with soft clipping."""
+            result = []
+            for s in samples:
+                val = s * gain
+                # Soft clipping to prevent harsh distortion
+                if val > 32767:
+                    val = 32767
+                elif val < -32768:
+                    val = -32768
+                result.append(int(val))
+            return result
+
+        # Automatic gain control state
+        mic_rms_history: list[float] = []
+        loopback_rms_history: list[float] = []
+        agc_window = 50  # Number of chunks to average for stable gain
+
         def mic_reader_thread() -> None:
             """Thread to read from microphone."""
             while not stop_event.is_set():
@@ -382,6 +407,30 @@ class WasapiBackend:
                             mic_chunk = aec_processor.process_samples(
                                 mic_chunk, loopback_chunk
                             )
+
+                        # Automatic gain control: match mic volume to loopback
+                        mic_rms = calc_rms(mic_chunk)
+                        loopback_rms = calc_rms(loopback_chunk)
+
+                        # Track RMS history for stable gain calculation
+                        if mic_rms > 100:  # Only track when there's actual signal
+                            mic_rms_history.append(mic_rms)
+                            if len(mic_rms_history) > agc_window:
+                                mic_rms_history.pop(0)
+                        if loopback_rms > 100:
+                            loopback_rms_history.append(loopback_rms)
+                            if len(loopback_rms_history) > agc_window:
+                                loopback_rms_history.pop(0)
+
+                        # Calculate and apply gain
+                        if mic_rms_history and loopback_rms_history:
+                            avg_mic_rms = sum(mic_rms_history) / len(mic_rms_history)
+                            avg_loopback_rms = sum(loopback_rms_history) / len(loopback_rms_history)
+                            if avg_mic_rms > 50:  # Avoid division issues
+                                target_gain = avg_loopback_rms / avg_mic_rms
+                                # Limit gain to reasonable range (0.5x to 4x)
+                                target_gain = max(0.5, min(4.0, target_gain))
+                                mic_chunk = apply_gain(mic_chunk, target_gain)
 
                         # Create stereo output
                         output_samples = []
