@@ -89,17 +89,19 @@ class AECProcessor:
     ) -> list[int]:
         """Process samples through AEC to remove echo.
 
-        Handles variable-length input by buffering and processing
-        in frame_size chunks.
+        Always returns the same number of samples as input to maintain
+        synchronization. Uses pass-through for samples that can't be
+        processed yet.
 
         Args:
             mic_samples: Microphone input samples (may contain echo)
             ref_samples: Reference signal samples (loopback/speaker output)
 
         Returns:
-            Echo-cancelled microphone samples (may be fewer than input
-            if buffering is needed)
+            Echo-cancelled microphone samples (same length as input)
         """
+        input_length = len(mic_samples)
+
         # Add to buffers
         self._mic_buffer.extend(mic_samples)
         self._ref_buffer.extend(ref_samples)
@@ -119,9 +121,20 @@ class AECProcessor:
             processed = self._aec.cancel_echo(mic_frame, ref_frame)
             self._output_buffer.extend(processed)
 
-        # Return accumulated output
-        result = self._output_buffer[:]
-        self._output_buffer.clear()
+        # Return exactly input_length samples to maintain sync
+        if len(self._output_buffer) >= input_length:
+            result = self._output_buffer[:input_length]
+            self._output_buffer = self._output_buffer[input_length:]
+        else:
+            # Not enough processed samples yet - use what we have plus
+            # pass-through for the rest (happens at the start)
+            available = len(self._output_buffer)
+            result = self._output_buffer[:]
+            self._output_buffer.clear()
+            # Fill remaining with original mic samples (pass-through)
+            remaining = input_length - available
+            result.extend(mic_samples[-remaining:])
+
         return result
 
     def process_bytes(

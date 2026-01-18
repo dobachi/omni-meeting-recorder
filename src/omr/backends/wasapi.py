@@ -378,14 +378,10 @@ class WasapiBackend:
 
                         # Apply AEC if enabled
                         if aec_processor is not None:
-                            processed = aec_processor.process_samples(
+                            # process_samples returns same length as input
+                            mic_chunk = aec_processor.process_samples(
                                 mic_chunk, loopback_chunk
                             )
-                            # Pad or truncate to match chunk_size
-                            if len(processed) < chunk_size:
-                                mic_chunk = processed + [0] * (chunk_size - len(processed))
-                            else:
-                                mic_chunk = processed[:chunk_size]
 
                         # Create stereo output
                         output_samples = []

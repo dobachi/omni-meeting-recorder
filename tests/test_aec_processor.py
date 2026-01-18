@@ -78,19 +78,19 @@ class TestAECProcessorWithMock:
     def test_process_samples_buffering(
         self, processor: AECProcessor, mock_aec: MagicMock
     ) -> None:
-        """Test process_samples buffers until frame_size is reached."""
+        """Test process_samples returns same length as input (pass-through when buffering)."""
         # Input less than frame_size
         mic = [1] * 100
         ref = [2] * 100
         result = processor.process_samples(mic, ref)
 
-        # Should buffer and return nothing yet
-        assert result == []
-        assert len(processor._mic_buffer) == 100
-        assert len(processor._ref_buffer) == 100
+        # Should return same length (pass-through since not enough for a frame)
+        assert len(result) == 100
+        # Pass-through should return original mic samples
+        assert result == mic
 
-        # AEC should not be called yet
-        mock_aec.cancel.assert_not_called()
+        # AEC should not be called yet (not enough samples)
+        mock_aec.cancel_echo.assert_not_called()
 
     def test_process_samples_processes_full_frame(
         self, processor: AECProcessor, mock_aec: MagicMock
@@ -108,13 +108,14 @@ class TestAECProcessorWithMock:
     def test_process_samples_multiple_frames(
         self, processor: AECProcessor, mock_aec: MagicMock
     ) -> None:
-        """Test process_samples with multiple frames worth of data."""
+        """Test process_samples with multiple frames returns same length as input."""
         mic = list(range(1000))
         ref = list(range(1000))
         result = processor.process_samples(mic, ref)
 
-        # Should process 2 complete frames (960 samples)
-        assert len(result) == 960
+        # Should return same length as input (maintains sync)
+        assert len(result) == 1000
+        # Should have processed 2 complete frames
         assert mock_aec.cancel_echo.call_count == 2
 
         # 40 samples should remain in buffer
