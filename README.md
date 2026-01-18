@@ -1,246 +1,256 @@
 # Omni Meeting Recorder (omr)
 
-Windows向けオンライン会議の音声録音CLIツール。イヤホン使用時でも相手の声（システム音声）と自分の声（マイク）の両方を録音可能。
+[日本語](README.ja.md) | English
+
+A Windows CLI tool for recording online meeting audio. Capture both remote participants' voices (system audio) and your own voice (microphone) simultaneously, even when using headphones.
 
 ## Features
 
-- **システム音声録音（Loopback）**: スピーカー/イヤホンに出力される音声をキャプチャ
-- **マイク録音**: マイク入力を録音
-- **Virtual Audio Cable不要**: WASAPI Loopbackを直接使用
-- **シンプルなCLI**: 簡単なコマンドで録音開始/停止
+- **System Audio Recording (Loopback)**: Capture audio output to speakers/headphones
+- **Microphone Recording**: Record microphone input
+- **Simultaneous Recording**: Record both mic and system audio together (stereo split or mixed)
+- **No Virtual Audio Cable Required**: Direct WASAPI Loopback support
+- **Simple CLI**: Start/stop recording with easy commands
 
 ## Requirements
 
 - Windows 10/11
-- Python 3.11以上
-- uv（推奨）またはpip
+- Python 3.11+
+- uv (recommended) or pip
 
-## Windows環境セットアップ
+## Installation
 
-### 1. Pythonのインストール
+### 1. Install Python
 
-Python 3.11以上がインストールされていない場合:
+If Python 3.11+ is not installed:
 
-1. [Python公式サイト](https://www.python.org/downloads/)からWindows用インストーラをダウンロード
-2. インストーラを実行し、**「Add Python to PATH」にチェック**を入れてインストール
-3. PowerShellまたはコマンドプロンプトで確認:
+1. Download Windows installer from [Python official site](https://www.python.org/downloads/)
+2. Run installer with **"Add Python to PATH" checked**
+3. Verify in PowerShell:
    ```powershell
    python --version
-   # Python 3.11.x 以上が表示されればOK
+   # Should show Python 3.11.x or higher
    ```
 
-### 2. uvのインストール（推奨）
+### 2. Install uv (Recommended)
 
-uvは高速なPythonパッケージマネージャーです。
+uv is a fast Python package manager.
 
-**PowerShellで実行:**
+**Run in PowerShell:**
 ```powershell
-# uvをインストール
+# Install uv
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# インストール確認
+# Verify installation
 uv --version
 ```
 
-または、pipでインストール:
+Or install via pip:
 ```powershell
 pip install uv
 ```
 
-### 3. omrのインストール
+### 3. Install omr
 
-#### 方法A: GitHubからclone（開発者向け）
+#### Option A: Clone from GitHub (for developers)
 
 ```powershell
-# リポジトリをclone
+# Clone repository
 git clone https://github.com/dobachi/omni-meeting-recorder.git
 cd omni-meeting-recorder
 
-# 依存関係をインストール
+# Install dependencies
 uv sync
 
-# 動作確認
+# Verify installation
 uv run omr --version
 uv run omr --help
 ```
 
-#### 方法B: pipで直接インストール（ユーザー向け）
+#### Option B: Install via pip (for users)
 
 ```powershell
-# PyPIからインストール（公開後）
+# Install from PyPI (after publication)
 pip install omni-meeting-recorder
 
-# または、GitHubから直接インストール
+# Or install directly from GitHub
 pip install git+https://github.com/dobachi/omni-meeting-recorder.git
 
-# 動作確認
+# Verify installation
 omr --version
-```
-
-## 動作テスト
-
-### Step 1: デバイス一覧の確認
-
-```powershell
-# uvでインストールした場合
-uv run omr devices
-
-# pipでインストールした場合
-omr devices
-```
-
-**期待される出力例:**
-```
-                    Recording Devices
-┏━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┓
-┃ Index  ┃ Type     ┃ Name                           ┃ Channels   ┃ Sample Rate  ┃ Default  ┃
-┡━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━┩
-│ 0      │ MIC      │ マイク (Realtek Audio)          │     2      │    44100 Hz  │    *     │
-│ 3      │ LOOP     │ スピーカー (Realtek Audio)      │     2      │    48000 Hz  │          │
-└────────┴──────────┴────────────────────────────────┴────────────┴──────────────┴──────────┘
-```
-
-- **MIC**: マイクデバイス
-- **LOOP**: Loopbackデバイス（システム音声をキャプチャ可能）
-- **\***: デフォルトデバイス
-
-### Step 2: システム音声（Loopback）録音テスト
-
-1. YouTubeなどで音声を再生
-2. 録音開始:
-   ```powershell
-   uv run omr start --loopback
-   ```
-3. 数秒待ってから `Ctrl+C` で停止
-4. 生成された `recording_YYYYMMDD_HHMMSS.wav` を再生して確認
-
-### Step 3: マイク録音テスト
-
-1. マイクに向かって話しながら:
-   ```powershell
-   uv run omr start --mic
-   ```
-2. `Ctrl+C` で停止
-3. 生成されたWAVファイルを再生して確認
-
-### Step 4: 特定デバイスを指定して録音
-
-```powershell
-# デバイスインデックスを指定（omr devicesで確認した番号を使用）
-uv run omr start --loopback --loopback-device 3
-uv run omr start --mic --mic-device 0
-
-# 出力ファイル名を指定
-uv run omr start --loopback --output meeting_audio.wav
-```
-
-## トラブルシューティング
-
-### 「No devices found」と表示される
-
-- Windowsのサウンド設定で、オーディオデバイスが有効になっているか確認
-- 「サウンドの設定」→「サウンドコントロールパネル」で無効なデバイスを有効化
-
-### Loopbackデバイスが表示されない
-
-- 出力デバイス（スピーカー/イヤホン）が接続・有効になっているか確認
-- WASAPI対応のオーディオドライバがインストールされているか確認
-
-### 録音ファイルが無音
-
-- 録音中にシステム音声が実際に再生されているか確認
-- `omr devices --all` で正しいデバイスを選択しているか確認
-- 別のLoopbackデバイスを試す: `--loopback-device <index>`
-
-### PyAudioWPatchのインストールエラー
-
-PyAudioWPatchはWindowsのみ対応しています。Linux/macOSではテストのみ実行可能です。
-
-```powershell
-# 手動でPyAudioWPatchをインストール
-pip install PyAudioWPatch
 ```
 
 ## Quick Start
 
 ```bash
-# デバイス一覧を表示
+# List available devices
 omr devices
 
-# システム音声（Loopback）を録音
+# Record system audio (Loopback)
 omr start --loopback
 
-# マイクを録音
+# Record microphone
 omr start --mic
 
-# 出力ファイルを指定して録音
+# Record both (stereo split: left=mic, right=system)
+omr start --loopback --mic
+
+# Record both (mixed mode)
+omr start --loopback --mic --mix
+
+# Specify output file
 omr start --loopback --output meeting.wav
 
-# 特定のデバイスを指定
+# Specify device by index
 omr start --loopback --loopback-device 5
 ```
 
-録音を停止するには `Ctrl+C` を押してください。
+Press `Ctrl+C` to stop recording.
+
+## Testing Your Setup
+
+### Step 1: Check Device List
+
+```powershell
+# If installed with uv
+uv run omr devices
+
+# If installed with pip
+omr devices
+```
+
+**Expected output:**
+```
+                    Recording Devices
+┏━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Index  ┃ Type     ┃ Name                           ┃ Channels   ┃ Sample Rate  ┃ Default  ┃
+┡━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ 0      │ MIC      │ Microphone (Realtek Audio)     │     2      │    44100 Hz  │    *     │
+│ 3      │ LOOP     │ Speakers (Realtek Audio)       │     2      │    48000 Hz  │          │
+└────────┴──────────┴────────────────────────────────┴────────────┴──────────────┴──────────┘
+```
+
+- **MIC**: Microphone devices
+- **LOOP**: Loopback devices (can capture system audio)
+- **\***: Default device
+
+### Step 2: Test System Audio (Loopback) Recording
+
+1. Play audio (e.g., YouTube)
+2. Start recording:
+   ```powershell
+   uv run omr start --loopback
+   ```
+3. Wait a few seconds, then press `Ctrl+C` to stop
+4. Play the generated `recording_YYYYMMDD_HHMMSS.wav` to verify
+
+### Step 3: Test Microphone Recording
+
+1. While speaking into the microphone:
+   ```powershell
+   uv run omr start --mic
+   ```
+2. Press `Ctrl+C` to stop
+3. Play the generated WAV file to verify
+
+### Step 4: Test Simultaneous Recording
+
+```powershell
+# Record both mic and system audio (stereo split)
+uv run omr start --loopback --mic
+
+# Record with specific devices
+uv run omr start --loopback --mic --loopback-device 3 --mic-device 0
+```
 
 ## Commands
 
 ### `omr devices`
 
-利用可能なオーディオデバイスを一覧表示します。
+List available audio devices.
 
 ```bash
-omr devices           # 録音可能なデバイス（マイク + Loopback）
-omr devices --all     # 全デバイス（出力デバイス含む）
-omr devices --mic     # マイクのみ
-omr devices --loopback  # Loopbackデバイスのみ
+omr devices           # Recording devices (mic + loopback)
+omr devices --all     # All devices (including output)
+omr devices --mic     # Microphone only
+omr devices --loopback  # Loopback devices only
 ```
 
 ### `omr start`
 
-録音を開始します。
+Start recording.
 
 ```bash
-omr start --loopback           # システム音声を録音
-omr start --mic                # マイクを録音
-omr start --loopback --mic     # 両方を録音（Phase 2で実装予定）
-omr start -o output.wav        # 出力ファイルを指定
+omr start --loopback           # Record system audio
+omr start --mic                # Record microphone
+omr start --loopback --mic     # Record both (stereo split)
+omr start --loopback --mic --mix  # Record both (mixed)
+omr start -o output.wav        # Specify output file
+```
+
+## Troubleshooting
+
+### "No devices found"
+
+- Check that audio devices are enabled in Windows Sound settings
+- Go to "Sound settings" → "Sound Control Panel" and enable disabled devices
+
+### Loopback device not showing
+
+- Verify output device (speakers/headphones) is connected and enabled
+- Ensure WASAPI-compatible audio driver is installed
+
+### Recording file is silent
+
+- Verify system audio is actually playing during recording
+- Check you're selecting the correct device with `omr devices --all`
+- Try a different loopback device: `--loopback-device <index>`
+
+### PyAudioWPatch installation error
+
+PyAudioWPatch only supports Windows. On Linux/macOS, only tests can be run.
+
+```powershell
+# Manually install PyAudioWPatch
+pip install PyAudioWPatch
 ```
 
 ## Development
 
-### 開発環境セットアップ
+### Setup Development Environment
 
 ```bash
-# 依存関係（開発用含む）をインストール
+# Install dependencies (including dev)
 uv sync --extra dev
 
-# テスト実行
+# Run tests
 uv run pytest
 
-# リント
+# Lint
 uv run ruff check src/
 
-# 型チェック
+# Type check
 uv run mypy src/
 ```
 
-### プロジェクト構成
+### Project Structure
 
 ```
 omni-meeting-recorder/
 ├── src/omr/
 │   ├── cli/
-│   │   ├── main.py           # CLIエントリーポイント
+│   │   ├── main.py           # CLI entry point
 │   │   └── commands/
-│   │       ├── record.py     # 録音コマンド
-│   │       └── devices.py    # デバイス一覧
+│   │       ├── record.py     # Recording command
+│   │       └── devices.py    # Device list
 │   ├── core/
-│   │   ├── audio_capture.py  # 音声キャプチャ抽象化
-│   │   └── device_manager.py # デバイス検出・管理
+│   │   ├── audio_capture.py  # Audio capture abstraction
+│   │   ├── device_manager.py # Device detection/management
+│   │   └── mixer.py          # Audio mixing/resampling
 │   ├── backends/
-│   │   └── wasapi.py         # Windows WASAPI実装
+│   │   └── wasapi.py         # Windows WASAPI implementation
 │   └── config/
-│       └── settings.py       # 設定管理
+│       └── settings.py       # Settings management
 ├── tests/
 ├── pyproject.toml
 └── README.md
@@ -249,26 +259,27 @@ omni-meeting-recorder/
 ## Roadmap
 
 - [x] Phase 1: MVP
-  - [x] デバイス一覧表示
-  - [x] システム音声のみ録音（Loopback）
-  - [x] マイク音声のみ録音
-  - [x] WAV形式出力
-  - [x] Ctrl+Cで停止
+  - [x] Device list display
+  - [x] System audio recording (Loopback)
+  - [x] Microphone recording
+  - [x] WAV format output
+  - [x] Stop with Ctrl+C
 
-- [ ] Phase 2: 同時録音
-  - [ ] マイク＋システム音声の同時録音
-  - [ ] ステレオ分離モード（左=マイク、右=システム）
-  - [ ] タイムスタンプ同期
+- [x] Phase 2: Simultaneous Recording
+  - [x] Mic + system audio simultaneous recording
+  - [x] Stereo split mode (left=mic, right=system)
+  - [x] Timestamp synchronization
 
-- [ ] Phase 3: エンコーディング
-  - [ ] FLAC出力対応
-  - [ ] MP3出力対応
-  - [ ] 設定ファイル対応
+- [ ] Phase 3: Encoding
+  - [ ] FLAC output support
+  - [ ] MP3 output support
+  - [ ] Configuration file support
 
-- [ ] Phase 4: 安定化・UX
-  - [ ] 長時間録音の安定性
-  - [ ] デバイス切断対応
-  - [ ] 録音中ステータス表示改善
+- [ ] Phase 4: Stability & UX
+  - [ ] Long-duration recording stability
+  - [ ] Device disconnection handling
+  - [ ] Recording status display improvements
+  - [ ] Background recording support
 
 ## License
 
