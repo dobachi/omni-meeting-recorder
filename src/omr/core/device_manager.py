@@ -65,11 +65,14 @@ class DeviceManager:
         """Scan and categorize all available audio devices."""
         self._devices.clear()
 
-        # Get default device indices
+        # Get default device info
         try:
-            default_input = p.get_default_input_device_info()["index"]
+            default_input_info = p.get_default_input_device_info()
+            default_input = default_input_info["index"]
+            default_input_name = default_input_info.get("name", "")
         except OSError:
             default_input = -1
+            default_input_name = ""
 
         try:
             default_output_info = p.get_default_output_device_info()
@@ -120,6 +123,12 @@ class DeviceManager:
                 )
                 self._devices.append(device)
             elif channels_in > 0:
+                # Check if this is the default input device by index or name
+                is_default_input = (i == default_input) or (
+                    default_input_name and (
+                        name in default_input_name or default_input_name in name
+                    )
+                )
                 device = AudioDevice(
                     index=i,
                     name=name,
@@ -127,7 +136,7 @@ class DeviceManager:
                     host_api="WASAPI",
                     channels=channels_in,
                     default_sample_rate=sample_rate,
-                    is_default=(i == default_input),
+                    is_default=is_default_input,
                 )
                 self._devices.append(device)
             elif channels_out > 0:
