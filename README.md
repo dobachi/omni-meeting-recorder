@@ -8,9 +8,12 @@ A Windows CLI tool for recording online meeting audio. Capture both remote parti
 
 - **System Audio Recording (Loopback)**: Capture audio output to speakers/headphones
 - **Microphone Recording**: Record microphone input
-- **Simultaneous Recording**: Record both mic and system audio together (stereo split or mixed)
+- **Simultaneous Recording**: Record both mic and system audio together (default mode)
+- **Acoustic Echo Cancellation (AEC)**: Software echo cancellation for speaker use
+- **Automatic Volume Normalization**: Match mic and system audio levels
+- **MP3 Output**: Direct MP3 encoding with configurable bitrate
 - **No Virtual Audio Cable Required**: Direct WASAPI Loopback support
-- **Simple CLI**: Start/stop recording with easy commands
+- **Simple CLI**: Start recording with a single command
 
 ## Requirements
 
@@ -86,23 +89,26 @@ omr --version
 # List available devices
 omr devices
 
-# Record system audio (Loopback)
-omr start --loopback
+# Record mic + system audio (default, with AEC and auto-normalization)
+omr start -o meeting.mp3
 
-# Record microphone
-omr start --mic
+# Record system audio only
+omr start -L -o system.mp3
 
-# Record both (stereo split: left=mic, right=system)
-omr start --loopback --mic
+# Record microphone only
+omr start -M -o mic.mp3
 
-# Record both (mixed mode)
-omr start --loopback --mic --mix
+# Disable AEC (if using headphones)
+omr start --no-aec -o meeting.mp3
 
-# Specify output file
-omr start --loopback --output meeting.wav
+# Output as WAV instead of MP3
+omr start -f wav -o meeting.wav
+
+# Stereo split mode (left=mic, right=system)
+omr start --stereo-split -o meeting.mp3
 
 # Specify device by index
-omr start --loopback --loopback-device 5
+omr start --loopback-device 5 --mic-device 0 -o meeting.mp3
 ```
 
 Press `Ctrl+C` to stop recording.
@@ -134,33 +140,26 @@ omr devices
 - **LOOP**: Loopback devices (can capture system audio)
 - **\***: Default device
 
-### Step 2: Test System Audio (Loopback) Recording
+### Step 2: Test Default Recording (Mic + System)
 
-1. Play audio (e.g., YouTube)
+1. Play audio (e.g., YouTube) and speak into the microphone
 2. Start recording:
    ```powershell
-   uv run omr start --loopback
+   uv run omr start -o test.mp3
    ```
 3. Wait a few seconds, then press `Ctrl+C` to stop
-4. Play the generated `recording_YYYYMMDD_HHMMSS.wav` to verify
+4. Play the generated MP3 to verify both sources are captured
 
-### Step 3: Test Microphone Recording
-
-1. While speaking into the microphone:
-   ```powershell
-   uv run omr start --mic
-   ```
-2. Press `Ctrl+C` to stop
-3. Play the generated WAV file to verify
-
-### Step 4: Test Simultaneous Recording
+### Step 3: Test System Audio Only
 
 ```powershell
-# Record both mic and system audio (stereo split)
-uv run omr start --loopback --mic
+uv run omr start -L -o system.mp3
+```
 
-# Record with specific devices
-uv run omr start --loopback --mic --loopback-device 3 --mic-device 0
+### Step 4: Test Microphone Only
+
+```powershell
+uv run omr start -M -o mic.mp3
 ```
 
 ## Commands
@@ -178,15 +177,32 @@ omr devices --loopback  # Loopback devices only
 
 ### `omr start`
 
-Start recording.
+Start recording. By default, records both mic and system audio with AEC enabled.
 
 ```bash
-omr start --loopback           # Record system audio
-omr start --mic                # Record microphone
-omr start --loopback --mic     # Record both (stereo split)
-omr start --loopback --mic --mix  # Record both (mixed)
-omr start -o output.wav        # Specify output file
+omr start                      # Record mic + system (default)
+omr start -o meeting.mp3       # Specify output file
+omr start -L                   # Record system audio only (--loopback-only)
+omr start -M                   # Record microphone only (--mic-only)
+omr start --no-aec             # Disable echo cancellation
+omr start --stereo-split       # Stereo: left=mic, right=system
+omr start -f wav               # Output as WAV instead of MP3
+omr start -b 192               # MP3 bitrate 192kbps (default: 128)
 ```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-o`, `--output` | Output file path |
+| `-L`, `--loopback-only` | Record system audio only |
+| `-M`, `--mic-only` | Record microphone only |
+| `--aec/--no-aec` | Enable/disable echo cancellation (default: enabled) |
+| `--stereo-split/--mix` | Stereo split or mix mode (default: mix) |
+| `-f`, `--format` | Output format: wav, mp3 (default: mp3) |
+| `-b`, `--bitrate` | MP3 bitrate in kbps (default: 128) |
+| `--mic-device` | Microphone device index |
+| `--loopback-device` | Loopback device index |
 
 ## Troubleshooting
 
@@ -215,22 +231,21 @@ PyAudioWPatch only supports Windows. On Linux/macOS, only tests can be run.
 pip install PyAudioWPatch
 ```
 
-## Known Limitations
+## Acoustic Echo Cancellation (AEC)
 
-### Echo in Dual Recording Mode (Mic + Loopback)
+When recording both mic and system audio while using **speakers**, the microphone picks up audio from the speakers. This causes echo in the recording.
 
-When recording with both `--mic` and `--loopback` options while using **speakers** (not headphones), the microphone may pick up audio from the speakers. This results in echo or doubled audio in the recording.
-
-**Workaround**: Use headphones instead of speakers when using dual recording mode. This prevents the microphone from capturing the speaker output.
+**Solution**: AEC is enabled by default and removes this echo using the [pyaec](https://pypi.org/project/pyaec/) library.
 
 ```powershell
-# The CLI will display a warning when using both options
-uv run omr start --mic --loopback
-# Warning: Using mic and loopback together may cause echo if speakers are used.
-# Recommendation: Use headphones to prevent microphone from picking up speaker audio.
+# AEC is enabled by default
+omr start -o meeting.mp3
+
+# Disable AEC if using headphones (slightly better audio quality)
+omr start --no-aec -o meeting.mp3
 ```
 
-See [Issue #6](https://github.com/dobachi/omni-meeting-recorder/issues/6) for more details and future plans for software-based echo cancellation.
+**Note**: For best results, use headphones when possible. AEC works well but headphones provide the cleanest audio.
 
 ## Development
 
@@ -297,16 +312,18 @@ omni-meeting-recorder/
   - [x] Stereo split mode (left=mic, right=system)
   - [x] Timestamp synchronization
 
-- [ ] Phase 3: Encoding
+- [x] Phase 3: Audio Processing
+  - [x] MP3 output support
+  - [x] Acoustic Echo Cancellation (AEC)
+  - [x] Automatic volume normalization
   - [ ] FLAC output support
-  - [ ] MP3 output support
-  - [ ] Configuration file support
 
 - [ ] Phase 4: Stability & UX
   - [ ] Long-duration recording stability
   - [ ] Device disconnection handling
   - [ ] Recording status display improvements
   - [ ] Background recording support
+  - [ ] Configuration file support
 
 ## License
 
