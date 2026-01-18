@@ -234,13 +234,24 @@ class WasapiBackend:
         mic_queue: Queue[list[int]] = Queue(maxsize=100)
         loopback_queue: Queue[list[int]] = Queue(maxsize=100)
 
-        def to_mono(samples: list[int], channels: int) -> list[int]:
-            """Convert to mono."""
+        def to_mono(samples: list[int], channels: int, use_left_only: bool = False) -> list[int]:
+            """Convert to mono.
+
+            Args:
+                samples: Interleaved samples
+                channels: Number of channels
+                use_left_only: If True, use only left channel (avoids phase issues)
+            """
             if channels == 1:
                 return samples
             mono = []
             for i in range(0, len(samples) - channels + 1, channels):
-                mono.append(sum(samples[i:i+channels]) // channels)
+                if use_left_only:
+                    # Use only left channel to avoid phase-related echo
+                    mono.append(samples[i])
+                else:
+                    # Average all channels
+                    mono.append(sum(samples[i:i+channels]) // channels)
             return mono
 
         def resample_simple(samples: list[int], from_rate: int, to_rate: int) -> list[int]:
@@ -286,7 +297,8 @@ class WasapiBackend:
                 try:
                     data = loopback_stream.read()
                     samples = list(struct.unpack(f"<{len(data) // 2}h", data))
-                    mono = to_mono(samples, loopback_channels)
+                    # Use left channel only to avoid phase-related echo
+                    mono = to_mono(samples, loopback_channels, use_left_only=True)
                     try:
                         loopback_queue.put_nowait(mono)
                     except Exception:
