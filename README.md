@@ -18,7 +18,7 @@ A Windows CLI tool for recording online meeting audio. Capture both remote parti
 ## Requirements
 
 - Windows 10/11
-- Python 3.11+
+- Python 3.11 - 3.13 (3.14+ not yet supported due to lameenc dependency)
 - uv (recommended) or pip
 
 ## Installation
