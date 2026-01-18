@@ -282,9 +282,6 @@ class WasapiBackend:
             except Exception:
                 return []
 
-        # Calculate output chunk size (samples per output chunk)
-        output_chunk_samples = self._settings.chunk_size
-
         try:
             mic_stream.open()
             loopback_stream.open()
@@ -295,25 +292,31 @@ class WasapiBackend:
                 wf.setframerate(output_sample_rate)
 
                 while not stop_event.is_set():
-                    # Read and accumulate samples from both sources
+                    # Read from both sources
                     mic_samples = read_and_process_mic()
                     loopback_samples = read_and_process_loopback()
 
                     mic_buffer.extend(mic_samples)
                     loopback_buffer.extend(loopback_samples)
 
-                    # Generate output when we have enough samples
-                    while len(mic_buffer) >= output_chunk_samples and len(loopback_buffer) >= output_chunk_samples:
-                        # Take chunk from each buffer
-                        mic_chunk = mic_buffer[:output_chunk_samples]
-                        loopback_chunk = loopback_buffer[:output_chunk_samples]
+                    # Use loopback as master clock - output whenever loopback has data
+                    if loopback_buffer:
+                        chunk_size = len(loopback_buffer)
+                        loopback_chunk = loopback_buffer[:chunk_size]
+                        loopback_buffer.clear()
 
-                        mic_buffer[:] = mic_buffer[output_chunk_samples:]
-                        loopback_buffer[:] = loopback_buffer[output_chunk_samples:]
+                        # Take matching amount from mic buffer (or pad with zeros)
+                        if len(mic_buffer) >= chunk_size:
+                            mic_chunk = mic_buffer[:chunk_size]
+                            mic_buffer[:] = mic_buffer[chunk_size:]
+                        else:
+                            # Use what we have and pad with zeros
+                            mic_chunk = mic_buffer[:] + [0] * (chunk_size - len(mic_buffer))
+                            mic_buffer.clear()
 
                         # Create stereo output
                         output_samples = []
-                        for i in range(output_chunk_samples):
+                        for i in range(chunk_size):
                             mic_val = mic_chunk[i] if i < len(mic_chunk) else 0
                             loop_val = loopback_chunk[i] if i < len(loopback_chunk) else 0
 
