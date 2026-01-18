@@ -39,9 +39,11 @@ class WasapiStream:
         self._lock = threading.Lock()
 
     def open(self) -> None:
-        """Open the audio stream."""
-        import pyaudiowpatch as pyaudio
+        """Open the audio stream.
 
+        For loopback devices, PyAudioWPatch automatically handles WASAPI loopback
+        capture when opening the loopback device as an input stream.
+        """
         with self._lock:
             if self._stream is not None:
                 return
@@ -54,10 +56,6 @@ class WasapiStream:
                 "input_device_index": self._config.device_index,
                 "frames_per_buffer": self._config.chunk_size,
             }
-
-            # For loopback capture, we need to use WASAPI loopback mode
-            if self._is_loopback:
-                stream_kwargs["as_loopback"] = True
 
             self._stream = self._pyaudio.open(**stream_kwargs)
             self._is_running = True
@@ -113,16 +111,24 @@ class WasapiBackend:
         channels: int | None = None,
         sample_rate: int | None = None,
     ) -> WasapiStream:
-        """Create an audio stream for the given device."""
+        """Create an audio stream for the given device.
+
+        Uses device's native sample rate and channels if not specified,
+        which is important for loopback devices to work correctly.
+        """
         import pyaudiowpatch as pyaudio
 
         if self._pyaudio is None:
             self.initialize()
 
+        # Use device's native settings for best compatibility
+        actual_channels = channels or device.channels or self._settings.channels
+        actual_sample_rate = sample_rate or int(device.default_sample_rate) or self._settings.sample_rate
+
         config = StreamConfig(
             device_index=device.index,
-            channels=channels or self._settings.channels,
-            sample_rate=sample_rate or self._settings.sample_rate,
+            channels=actual_channels,
+            sample_rate=actual_sample_rate,
             chunk_size=self._settings.chunk_size,
             format=pyaudio.paInt16,  # 16-bit audio
         )
@@ -156,11 +162,15 @@ class WasapiBackend:
 
         sample_width = self._pyaudio.get_sample_size(pyaudio.paInt16)
 
+        # Use the actual stream config settings for WAV file
+        channels = stream._config.channels
+        sample_rate = stream._config.sample_rate
+
         try:
             with wave.open(str(output_path), "wb") as wf:
-                wf.setnchannels(self._settings.channels)
+                wf.setnchannels(channels)
                 wf.setsampwidth(sample_width)
-                wf.setframerate(self._settings.sample_rate)
+                wf.setframerate(sample_rate)
 
                 while not stop_event.is_set():
                     try:
