@@ -29,11 +29,12 @@ def _format_duration(seconds: float) -> str:
 
 def _format_size(bytes_count: int) -> str:
     """Format file size in human-readable format."""
+    size: float = bytes_count
     for unit in ["B", "KB", "MB", "GB"]:
-        if bytes_count < 1024:
-            return f"{bytes_count:.1f} {unit}"
-        bytes_count /= 1024
-    return f"{bytes_count:.1f} TB"
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 def _create_status_panel(session: RecordingSession) -> Panel:

@@ -2,8 +2,6 @@
 
 import struct
 
-import pytest
-
 from omr.core.mixer import AudioMixer, MixerConfig
 
 

@@ -1,11 +1,8 @@
 """Tests for the encoder module."""
 
-import struct
 import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from omr.core.encoder import encode_to_mp3, is_mp3_available
 
@@ -37,9 +34,11 @@ class TestIsMp3Available:
 
     def test_returns_false_when_lameenc_not_installed(self) -> None:
         """Returns False when lameenc import fails."""
-        with patch.dict("sys.modules", {"lameenc": None}):
-            with patch("builtins.__import__", side_effect=ImportError):
-                assert is_mp3_available() is False
+        with (
+            patch.dict("sys.modules", {"lameenc": None}),
+            patch("builtins.__import__", side_effect=ImportError),
+        ):
+            assert is_mp3_available() is False
 
 
 class TestEncodeToMp3:
@@ -51,11 +50,13 @@ class TestEncodeToMp3:
         mp3_path = tmp_path / "test.mp3"
         _create_test_wav(wav_path)
 
-        with patch.dict("sys.modules", {"lameenc": None}):
-            with patch("builtins.__import__", side_effect=ImportError):
-                result = encode_to_mp3(wav_path, mp3_path)
-                assert result is False
-                assert not mp3_path.exists()
+        with (
+            patch.dict("sys.modules", {"lameenc": None}),
+            patch("builtins.__import__", side_effect=ImportError),
+        ):
+            result = encode_to_mp3(wav_path, mp3_path)
+            assert result is False
+            assert not mp3_path.exists()
 
     def test_returns_false_for_invalid_wav(self, tmp_path: Path) -> None:
         """Returns False when input file is not a valid WAV."""

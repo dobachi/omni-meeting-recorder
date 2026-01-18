@@ -1,6 +1,5 @@
 """Tests for device manager."""
 
-import pytest
 
 from omr.core.device_manager import AudioDevice, DeviceManager, DeviceType
 
@@ -66,8 +65,8 @@ class TestDeviceManager:
 
     def test_initialization_without_pyaudio(self):
         """Test that DeviceManager raises error without PyAudioWPatch."""
-        manager = DeviceManager()
-        # On systems without PyAudioWPatch, this should raise RuntimeError
+        _ = DeviceManager()  # Just verify instantiation doesn't crash
+        # On systems without PyAudioWPatch, initialize() should raise RuntimeError
         # We test this behavior indirectly
 
     def test_get_device_by_index_empty(self):

@@ -53,13 +53,13 @@ class DeviceManager:
             self._scan_devices(p)
             p.terminate()
             self._initialized = True
-        except ImportError:
+        except ImportError as e:
             raise RuntimeError(
                 "PyAudioWPatch is required but not installed. "
                 "Install with: pip install PyAudioWPatch"
-            )
+            ) from e
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize audio system: {e}")
+            raise RuntimeError(f"Failed to initialize audio system: {e}") from e
 
     def _scan_devices(self, p: Any) -> None:
         """Scan and categorize all available audio devices."""
@@ -117,7 +117,11 @@ class DeviceManager:
                     name=name,
                     device_type=DeviceType.LOOPBACK,
                     host_api="WASAPI",
-                    channels=channels_in if channels_in > 0 else (channels_out if channels_out > 0 else 2),
+                    channels=(
+                        channels_in
+                        if channels_in > 0
+                        else (channels_out if channels_out > 0 else 2)
+                    ),
                     default_sample_rate=sample_rate,
                     is_default=is_default_loopback,
                 )

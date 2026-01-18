@@ -1,0 +1,63 @@
+"""Type stubs for PyAudioWPatch (Windows WASAPI audio library)."""
+
+from typing import Any
+
+# Audio format constants
+paInt16: int
+paInt32: int
+paFloat32: int
+paInt8: int
+paUInt8: int
+
+class Stream:
+    """Audio stream for reading/writing audio data."""
+
+    def read(
+        self,
+        num_frames: int,
+        exception_on_overflow: bool = True,
+    ) -> bytes: ...
+    def write(self, data: bytes) -> None: ...
+    def start_stream(self) -> None: ...
+    def stop_stream(self) -> None: ...
+    def close(self) -> None: ...
+    def is_active(self) -> bool: ...
+    def is_stopped(self) -> bool: ...
+
+class PyAudio:
+    """Main PyAudio interface for audio I/O."""
+
+    def __init__(self) -> None: ...
+    def terminate(self) -> None: ...
+    def open(
+        self,
+        rate: int = ...,
+        channels: int = ...,
+        format: int = ...,
+        input: bool = False,
+        output: bool = False,
+        input_device_index: int | None = None,
+        output_device_index: int | None = None,
+        frames_per_buffer: int = ...,
+        as_loopback: bool = False,
+        stream_callback: Any = None,
+        **kwargs: Any,
+    ) -> Stream: ...
+    def get_sample_size(self, format: int) -> int: ...
+    def get_device_count(self) -> int: ...
+    def get_device_info_by_index(self, device_index: int) -> dict[str, Any]: ...
+    def get_default_input_device_info(self) -> dict[str, Any]: ...
+    def get_default_output_device_info(self) -> dict[str, Any]: ...
+    def get_host_api_count(self) -> int: ...
+    def get_host_api_info_by_index(self, host_api_index: int) -> dict[str, Any]: ...
+    def get_default_host_api_info(self) -> dict[str, Any]: ...
+    def is_format_supported(
+        self,
+        rate: float,
+        input_device: int | None = None,
+        input_channels: int | None = None,
+        input_format: int | None = None,
+        output_device: int | None = None,
+        output_channels: int | None = None,
+        output_format: int | None = None,
+    ) -> bool: ...

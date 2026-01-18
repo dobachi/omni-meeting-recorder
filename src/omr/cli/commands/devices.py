@@ -30,7 +30,7 @@ def list_devices(
         manager.initialize()
     except RuntimeError as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     # Filter devices based on options
     if mic_only:

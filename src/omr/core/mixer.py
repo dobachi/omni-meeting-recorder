@@ -1,11 +1,10 @@
 """Audio mixer for combining multiple audio streams."""
 
+import contextlib
 import struct
 import threading
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from queue import Empty, Queue
-from typing import Any
 
 
 @dataclass
@@ -68,19 +67,15 @@ class AudioMixer:
 
     def add_mic_data(self, data: bytes) -> None:
         """Add microphone audio data to the mixer."""
-        try:
-            # Use blocking put with timeout to avoid dropping data
-            self._mic_queue.put(data, timeout=0.5)
-        except Exception:
-            pass  # Only drop if timeout (shouldn't happen normally)
+        # Use blocking put with timeout to avoid dropping data
+        with contextlib.suppress(Exception):
+            self._mic_queue.put(data, timeout=0.5)  # Drop if timeout
 
     def add_loopback_data(self, data: bytes) -> None:
         """Add loopback audio data to the mixer."""
-        try:
-            # Use blocking put with timeout to avoid dropping data
-            self._loopback_queue.put(data, timeout=0.5)
-        except Exception:
-            pass  # Only drop if timeout (shouldn't happen normally)
+        # Use blocking put with timeout to avoid dropping data
+        with contextlib.suppress(Exception):
+            self._loopback_queue.put(data, timeout=0.5)  # Drop if timeout
 
     def get_output(self, timeout: float = 0.1) -> bytes | None:
         """Get mixed output data."""
@@ -103,10 +98,8 @@ class AudioMixer:
                 # Mix the audio
                 mixed = self._mix_audio(mic_data, loopback_data)
                 if mixed:
-                    try:
-                        self._output_queue.put_nowait(mixed)
-                    except Exception:
-                        pass  # Drop if output queue is full
+                    with contextlib.suppress(Exception):
+                        self._output_queue.put_nowait(mixed)  # Drop if queue full
 
             except Exception:
                 if not self._running:
@@ -133,7 +126,9 @@ class AudioMixer:
 
         # Convert to mono based on actual channel count
         mic_mono = self._to_mono_with_channels(mic_samples, self._config.mic_channels)
-        loopback_mono = self._to_mono_with_channels(loopback_samples, self._config.loopback_channels)
+        loopback_mono = self._to_mono_with_channels(
+            loopback_samples, self._config.loopback_channels
+        )
 
         # Resample to output sample rate if needed
         if self._config.mic_sample_rate != self._config.sample_rate:

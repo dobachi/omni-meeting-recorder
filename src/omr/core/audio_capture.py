@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from omr.backends.wasapi import WasapiBackend
-from omr.config.settings import AudioSettings, RecordingMode, Settings
+from omr.config.settings import RecordingMode, Settings
 from omr.core.device_manager import AudioDevice, DeviceManager
 
 

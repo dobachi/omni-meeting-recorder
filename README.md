@@ -238,16 +238,29 @@ See [Issue #6](https://github.com/dobachi/omni-meeting-recorder/issues/6) for mo
 
 ```bash
 # Install dependencies (including dev)
-uv sync --extra dev
+make dev-install
+# Or: uv sync --extra dev
+```
 
-# Run tests
-uv run pytest
+### Running Checks
 
-# Lint
-uv run ruff check src/
+Use `make` to run linting, type checking, and tests:
 
-# Type check
-uv run mypy src/
+```bash
+# Run all checks (lint + typecheck + test)
+make check
+
+# Or run individually:
+make lint       # Run ruff linter
+make typecheck  # Run mypy type checker
+make test       # Run pytest
+
+# Other useful commands:
+make lint-fix   # Auto-fix lint issues
+make format     # Format code with ruff
+make test-cov   # Run tests with coverage
+make clean      # Clean up cache files
+make help       # Show all available commands
 ```
 
 ### Project Structure

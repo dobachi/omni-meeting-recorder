@@ -1,5 +1,6 @@
 """WASAPI backend for Windows audio capture using PyAudioWPatch."""
 
+import contextlib
 import threading
 import wave
 from collections.abc import Callable
@@ -73,7 +74,8 @@ class WasapiStream:
         """Read a chunk of audio data."""
         if self._stream is None:
             raise RuntimeError("Stream is not open")
-        return self._stream.read(self._config.chunk_size, exception_on_overflow=False)
+        data: bytes = self._stream.read(self._config.chunk_size, exception_on_overflow=False)
+        return data
 
     @property
     def is_running(self) -> bool:
@@ -123,7 +125,9 @@ class WasapiBackend:
 
         # Use device's native settings for best compatibility
         actual_channels = channels or device.channels or self._settings.channels
-        actual_sample_rate = sample_rate or int(device.default_sample_rate) or self._settings.sample_rate
+        actual_sample_rate = (
+            sample_rate or int(device.default_sample_rate) or self._settings.sample_rate
+        )
 
         config = StreamConfig(
             device_index=device.index,
@@ -283,10 +287,8 @@ class WasapiBackend:
                     mono = to_mono(samples, mic_channels)
                     # Resample to output rate
                     resampled = resample_simple(mono, mic_sample_rate, output_sample_rate)
-                    try:
-                        mic_queue.put_nowait(resampled)
-                    except Exception:
-                        pass  # Drop if queue full
+                    with contextlib.suppress(Exception):
+                        mic_queue.put_nowait(resampled)  # Drop if queue full
                 except Exception:
                     if stop_event.is_set():
                         break
@@ -299,10 +301,8 @@ class WasapiBackend:
                     samples = list(struct.unpack(f"<{len(data) // 2}h", data))
                     # Use left channel only to avoid phase-related echo
                     mono = to_mono(samples, loopback_channels, use_left_only=True)
-                    try:
-                        loopback_queue.put_nowait(mono)
-                    except Exception:
-                        pass  # Drop if queue full
+                    with contextlib.suppress(Exception):
+                        loopback_queue.put_nowait(mono)  # Drop if queue full
                 except Exception:
                     if stop_event.is_set():
                         break
