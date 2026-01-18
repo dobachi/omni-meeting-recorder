@@ -125,10 +125,9 @@ def start(
     # Parse output path - ensure WAV extension for recording when MP3 output requested
     output_path = Path(output) if output else None
     desired_mp3_path: Path | None = None
-    if output_format == AudioFormat.MP3 and output_path:
-        if output_path.suffix.lower() == ".mp3":
-            desired_mp3_path = output_path
-            output_path = output_path.with_suffix(".wav")
+    if output_format == AudioFormat.MP3 and output_path and output_path.suffix.lower() == ".mp3":
+        desired_mp3_path = output_path
+        output_path = output_path.with_suffix(".wav")
 
     audio_capture: AudioCapture | None = None
     session: RecordingSession | None = None
@@ -208,10 +207,10 @@ def start(
 
     except RuntimeError as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except NotImplementedError as e:
         console.print(f"[yellow]Not implemented:[/yellow] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     finally:
         if audio_capture:
             audio_capture.terminate()
