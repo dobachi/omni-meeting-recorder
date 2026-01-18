@@ -196,6 +196,8 @@ class WasapiBackend:
     ) -> None:
         """Record audio from both mic and loopback devices to a single WAV file.
 
+        Uses synchronous recording with per-sample mixing for reliable audio.
+
         Args:
             mic_device: Microphone device
             loopback_device: Loopback device for system audio
@@ -204,14 +206,14 @@ class WasapiBackend:
             stereo_split: If True, left=mic, right=system. If False, mix both.
             on_chunk: Callback for each output chunk
         """
-        import pyaudiowpatch as pyaudio
+        import struct
 
-        from omr.core.mixer import AudioMixer, MixerConfig
+        import pyaudiowpatch as pyaudio
 
         if self._pyaudio is None:
             self.initialize()
 
-        # Use each device's native sample rate for best compatibility
+        # Use each device's native sample rate
         mic_sample_rate = int(mic_device.default_sample_rate)
         loopback_sample_rate = int(loopback_device.default_sample_rate)
 
@@ -222,78 +224,116 @@ class WasapiBackend:
         mic_stream = self.create_stream(mic_device)
         loopback_stream = self.create_stream(loopback_device)
 
-        # Get actual channel counts from streams
         mic_channels = mic_stream._config.channels
         loopback_channels = loopback_stream._config.channels
 
-        # Create mixer with sample rate and channel info
-        mixer_config = MixerConfig(
-            sample_rate=output_sample_rate,
-            mic_sample_rate=mic_sample_rate,
-            loopback_sample_rate=loopback_sample_rate,
-            mic_channels=mic_channels,
-            loopback_channels=loopback_channels,
-            channels=2,  # Stereo output
-            chunk_size=self._settings.chunk_size,
-            stereo_split=stereo_split,
-        )
-        mixer = AudioMixer(mixer_config)
-
         sample_width = self._pyaudio.get_sample_size(pyaudio.paInt16)
 
-        # Reader threads
-        def mic_reader() -> None:
-            while not stop_event.is_set():
-                try:
-                    data = mic_stream.read()
-                    mixer.add_mic_data(data)
-                except Exception:
-                    if stop_event.is_set():
-                        break
+        # Accumulators for resampling
+        mic_buffer: list[int] = []
+        loopback_buffer: list[int] = []
 
-        def loopback_reader() -> None:
-            while not stop_event.is_set():
-                try:
-                    data = loopback_stream.read()
-                    mixer.add_loopback_data(data)
-                except Exception:
-                    if stop_event.is_set():
-                        break
+        def resample_simple(samples: list[int], from_rate: int, to_rate: int) -> list[int]:
+            """Simple resampling using linear interpolation."""
+            if from_rate == to_rate or not samples:
+                return samples
+            ratio = to_rate / from_rate
+            new_length = int(len(samples) * ratio)
+            if new_length == 0:
+                return []
+            resampled = []
+            for i in range(new_length):
+                pos = i / ratio
+                idx = int(pos)
+                frac = pos - idx
+                if idx + 1 < len(samples):
+                    val = samples[idx] * (1 - frac) + samples[idx + 1] * frac
+                else:
+                    val = samples[idx] if idx < len(samples) else 0
+                resampled.append(int(val))
+            return resampled
+
+        def to_mono(samples: list[int], channels: int) -> list[int]:
+            """Convert to mono."""
+            if channels == 1:
+                return samples
+            mono = []
+            for i in range(0, len(samples) - channels + 1, channels):
+                mono.append(sum(samples[i:i+channels]) // channels)
+            return mono
+
+        def read_and_process_mic() -> list[int]:
+            """Read from mic and return resampled mono samples."""
+            try:
+                data = mic_stream.read()
+                samples = list(struct.unpack(f"<{len(data) // 2}h", data))
+                mono = to_mono(samples, mic_channels)
+                return resample_simple(mono, mic_sample_rate, output_sample_rate)
+            except Exception:
+                return []
+
+        def read_and_process_loopback() -> list[int]:
+            """Read from loopback and return resampled mono samples."""
+            try:
+                data = loopback_stream.read()
+                samples = list(struct.unpack(f"<{len(data) // 2}h", data))
+                mono = to_mono(samples, loopback_channels)
+                return resample_simple(mono, loopback_sample_rate, output_sample_rate)
+            except Exception:
+                return []
+
+        # Calculate output chunk size (samples per output chunk)
+        output_chunk_samples = self._settings.chunk_size
 
         try:
-            # Open streams
             mic_stream.open()
             loopback_stream.open()
 
-            # Start mixer
-            mixer.start()
-
-            # Start reader threads
-            mic_thread = threading.Thread(target=mic_reader, daemon=True)
-            loopback_thread = threading.Thread(target=loopback_reader, daemon=True)
-            mic_thread.start()
-            loopback_thread.start()
-
-            # Write mixed output to file
             with wave.open(str(output_path), "wb") as wf:
-                wf.setnchannels(2)  # Stereo
+                wf.setnchannels(2)  # Stereo output
                 wf.setsampwidth(sample_width)
                 wf.setframerate(output_sample_rate)
 
                 while not stop_event.is_set():
-                    mixed_data = mixer.get_output(timeout=0.1)
-                    if mixed_data:
-                        wf.writeframes(mixed_data)
-                        if on_chunk:
-                            on_chunk(mixed_data)
+                    # Read and accumulate samples from both sources
+                    mic_samples = read_and_process_mic()
+                    loopback_samples = read_and_process_loopback()
 
-            # Wait for reader threads to finish
-            stop_event.set()
-            mic_thread.join(timeout=1.0)
-            loopback_thread.join(timeout=1.0)
+                    mic_buffer.extend(mic_samples)
+                    loopback_buffer.extend(loopback_samples)
+
+                    # Generate output when we have enough samples
+                    while len(mic_buffer) >= output_chunk_samples and len(loopback_buffer) >= output_chunk_samples:
+                        # Take chunk from each buffer
+                        mic_chunk = mic_buffer[:output_chunk_samples]
+                        loopback_chunk = loopback_buffer[:output_chunk_samples]
+
+                        mic_buffer[:] = mic_buffer[output_chunk_samples:]
+                        loopback_buffer[:] = loopback_buffer[output_chunk_samples:]
+
+                        # Create stereo output
+                        output_samples = []
+                        for i in range(output_chunk_samples):
+                            mic_val = mic_chunk[i] if i < len(mic_chunk) else 0
+                            loop_val = loopback_chunk[i] if i < len(loopback_chunk) else 0
+
+                            if stereo_split:
+                                # Left = mic, Right = loopback
+                                output_samples.extend([mic_val, loop_val])
+                            else:
+                                # Mix both channels
+                                mixed = (mic_val + loop_val) // 2
+                                output_samples.extend([mixed, mixed])
+
+                        # Clamp and write
+                        clamped = [max(-32768, min(32767, s)) for s in output_samples]
+                        output_data = struct.pack(f"<{len(clamped)}h", *clamped)
+                        wf.writeframes(output_data)
+
+                        if on_chunk:
+                            on_chunk(output_data)
 
         finally:
-            mixer.stop()
             mic_stream.close()
             loopback_stream.close()
 

@@ -36,9 +36,10 @@ class AudioMixer:
 
     def __init__(self, config: MixerConfig | None = None) -> None:
         self._config = config or MixerConfig()
-        self._mic_queue: Queue[bytes] = Queue(maxsize=100)
-        self._loopback_queue: Queue[bytes] = Queue(maxsize=100)
-        self._output_queue: Queue[bytes] = Queue(maxsize=100)
+        # Use larger queues and block on put to avoid dropping data
+        self._mic_queue: Queue[bytes] = Queue(maxsize=500)
+        self._loopback_queue: Queue[bytes] = Queue(maxsize=500)
+        self._output_queue: Queue[bytes] = Queue(maxsize=500)
         self._running = False
         self._mixer_thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -68,16 +69,18 @@ class AudioMixer:
     def add_mic_data(self, data: bytes) -> None:
         """Add microphone audio data to the mixer."""
         try:
-            self._mic_queue.put_nowait(data)
+            # Use blocking put with timeout to avoid dropping data
+            self._mic_queue.put(data, timeout=0.5)
         except Exception:
-            pass  # Drop data if queue is full
+            pass  # Only drop if timeout (shouldn't happen normally)
 
     def add_loopback_data(self, data: bytes) -> None:
         """Add loopback audio data to the mixer."""
         try:
-            self._loopback_queue.put_nowait(data)
+            # Use blocking put with timeout to avoid dropping data
+            self._loopback_queue.put(data, timeout=0.5)
         except Exception:
-            pass  # Drop data if queue is full
+            pass  # Only drop if timeout (shouldn't happen normally)
 
     def get_output(self, timeout: float = 0.1) -> bytes | None:
         """Get mixed output data."""
