@@ -71,9 +71,10 @@ class TestOutputSettings:
     def test_default_values(self):
         """Test default output settings."""
         settings = OutputSettings()
-        assert settings.format == AudioFormat.WAV
+        assert settings.format == AudioFormat.MP3
         assert settings.output_dir == Path(".")
         assert settings.filename_template == "recording_{timestamp}"
+        assert settings.bitrate == 128
 
     def test_custom_output_dir(self):
         """Test custom output directory."""

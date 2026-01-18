@@ -1,10 +1,13 @@
 """CLI entry point for Omni Meeting Recorder."""
 
+from typing import Annotated
+
 import typer
 from rich.console import Console
 
 from omr import __version__
 from omr.cli.commands import devices, record
+from omr.config.settings import AudioFormat
 
 app = typer.Typer(
     name="omr",
@@ -56,6 +59,15 @@ def start_recording(
         "--stereo-split/--mix",
         help="Stereo split (left=mic, right=system) or mix both channels",
     ),
+    output_format: Annotated[
+        AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
+    ] = AudioFormat.MP3,
+    bitrate: Annotated[
+        int, typer.Option("--bitrate", "-b", help="MP3 bitrate in kbps")
+    ] = 128,
+    keep_wav: Annotated[
+        bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion")
+    ] = False,
 ) -> None:
     """Start recording audio. Shortcut for 'omr record start'."""
     record.start(
@@ -65,6 +77,9 @@ def start_recording(
         mic_device=mic_device,
         loopback_device=loopback_device,
         stereo_split=stereo_split,
+        output_format=output_format,
+        bitrate=bitrate,
+        keep_wav=keep_wav,
     )
 
 

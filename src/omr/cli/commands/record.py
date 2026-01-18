@@ -3,6 +3,7 @@
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -10,8 +11,9 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
-from omr.config.settings import RecordingMode
+from omr.config.settings import AudioFormat, RecordingMode
 from omr.core.audio_capture import AudioCapture, RecordingSession
+from omr.core.encoder import encode_to_mp3, is_mp3_available
 
 app = typer.Typer(help="Recording commands")
 console = Console()
@@ -81,8 +83,23 @@ def start(
         "--stereo-split/--mix",
         help="Stereo split (left=mic, right=system) or mix both channels",
     ),
+    output_format: Annotated[
+        AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
+    ] = AudioFormat.MP3,
+    bitrate: Annotated[
+        int, typer.Option("--bitrate", "-b", help="MP3 bitrate in kbps")
+    ] = 128,
+    keep_wav: Annotated[
+        bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion")
+    ] = False,
 ) -> None:
     """Start recording audio."""
+    # Check lameenc availability for MP3 format
+    if output_format == AudioFormat.MP3 and not is_mp3_available():
+        console.print("[red]Error:[/red] lameenc is required for MP3 output.")
+        console.print("[dim]Install with: uv sync --extra mp3[/dim]")
+        raise typer.Exit(1)
+
     # Determine recording mode
     if loopback and mic:
         mode = RecordingMode.BOTH
@@ -155,7 +172,24 @@ def start(
         console.print("[green]Recording complete![/green]")
         console.print(f"[cyan]Duration:[/cyan] {_format_duration(elapsed)}")
         console.print(f"[cyan]Size:[/cyan] {_format_size(state.bytes_recorded)}")
-        console.print(f"[cyan]Saved to:[/cyan] {state.output_file}")
+
+        # Convert to MP3 if requested
+        final_output: Path | str | None = state.output_file
+        if output_format == AudioFormat.MP3 and state.output_file:
+            wav_path = state.output_file
+            mp3_path = wav_path.with_suffix(".mp3")
+            console.print("[yellow]Converting to MP3...[/yellow]")
+
+            if encode_to_mp3(wav_path, mp3_path, bitrate):
+                final_output = str(mp3_path)
+                if not keep_wav:
+                    wav_path.unlink()
+                    console.print("[dim]Removed temporary WAV file[/dim]")
+                console.print("[green]MP3 conversion complete![/green]")
+            else:
+                console.print("[red]MP3 conversion failed, keeping WAV file[/red]")
+
+        console.print(f"[cyan]Saved to:[/cyan] {final_output}")
 
     except RuntimeError as e:
         console.print(f"[red]Error:[/red] {e}")

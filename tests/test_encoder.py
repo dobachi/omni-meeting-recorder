@@ -1,0 +1,149 @@
+"""Tests for the encoder module."""
+
+import struct
+import wave
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from omr.core.encoder import encode_to_mp3, is_mp3_available
+
+
+def _create_test_wav(path: Path, duration_ms: int = 100) -> None:
+    """Create a minimal valid WAV file for testing."""
+    sample_rate = 44100
+    channels = 2
+    sample_width = 2  # 16-bit
+    num_frames = int(sample_rate * duration_ms / 1000)
+
+    with wave.open(str(path), "wb") as wav_file:
+        wav_file.setnchannels(channels)
+        wav_file.setsampwidth(sample_width)
+        wav_file.setframerate(sample_rate)
+        # Generate silent audio
+        wav_file.writeframes(b"\x00" * (num_frames * channels * sample_width))
+
+
+class TestIsMp3Available:
+    """Tests for is_mp3_available function."""
+
+    def test_returns_true_when_lameenc_installed(self) -> None:
+        """Returns True when lameenc can be imported."""
+        mock_lameenc = MagicMock()
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            # Need to reload to get the patched import
+            assert is_mp3_available() is True
+
+    def test_returns_false_when_lameenc_not_installed(self) -> None:
+        """Returns False when lameenc import fails."""
+        with patch.dict("sys.modules", {"lameenc": None}):
+            with patch("builtins.__import__", side_effect=ImportError):
+                assert is_mp3_available() is False
+
+
+class TestEncodeToMp3:
+    """Tests for encode_to_mp3 function."""
+
+    def test_returns_false_when_lameenc_not_available(self, tmp_path: Path) -> None:
+        """Returns False when lameenc is not installed."""
+        wav_path = tmp_path / "test.wav"
+        mp3_path = tmp_path / "test.mp3"
+        _create_test_wav(wav_path)
+
+        with patch.dict("sys.modules", {"lameenc": None}):
+            with patch("builtins.__import__", side_effect=ImportError):
+                result = encode_to_mp3(wav_path, mp3_path)
+                assert result is False
+                assert not mp3_path.exists()
+
+    def test_returns_false_for_invalid_wav(self, tmp_path: Path) -> None:
+        """Returns False when input file is not a valid WAV."""
+        wav_path = tmp_path / "invalid.wav"
+        mp3_path = tmp_path / "test.mp3"
+        wav_path.write_text("not a wav file")
+
+        mock_lameenc = MagicMock()
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            result = encode_to_mp3(wav_path, mp3_path)
+            assert result is False
+
+    def test_returns_false_for_nonexistent_file(self, tmp_path: Path) -> None:
+        """Returns False when input file does not exist."""
+        wav_path = tmp_path / "nonexistent.wav"
+        mp3_path = tmp_path / "test.mp3"
+
+        mock_lameenc = MagicMock()
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            result = encode_to_mp3(wav_path, mp3_path)
+            assert result is False
+
+    def test_successful_encoding_with_lameenc(self, tmp_path: Path) -> None:
+        """Successfully encodes WAV to MP3 when lameenc is available."""
+        wav_path = tmp_path / "test.wav"
+        mp3_path = tmp_path / "test.mp3"
+        _create_test_wav(wav_path)
+
+        # Create a mock encoder that returns valid MP3 data
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = b"fake_mp3_data"
+        mock_encoder.flush.return_value = b"_end"
+
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            result = encode_to_mp3(wav_path, mp3_path, bitrate=192)
+
+            assert result is True
+            assert mp3_path.exists()
+            assert mp3_path.read_bytes() == b"fake_mp3_data_end"
+
+            # Verify encoder configuration
+            mock_encoder.set_bit_rate.assert_called_once_with(192)
+            mock_encoder.set_in_sample_rate.assert_called_once_with(44100)
+            mock_encoder.set_channels.assert_called_once_with(2)
+            mock_encoder.set_quality.assert_called_once_with(2)
+
+    def test_uses_default_bitrate(self, tmp_path: Path) -> None:
+        """Uses 128kbps as default bitrate."""
+        wav_path = tmp_path / "test.wav"
+        mp3_path = tmp_path / "test.mp3"
+        _create_test_wav(wav_path)
+
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = b"data"
+        mock_encoder.flush.return_value = b""
+
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            encode_to_mp3(wav_path, mp3_path)  # No bitrate specified
+            mock_encoder.set_bit_rate.assert_called_once_with(128)
+
+    def test_returns_false_for_non_16bit_wav(self, tmp_path: Path) -> None:
+        """Returns False for WAV files that are not 16-bit."""
+        wav_path = tmp_path / "test_8bit.wav"
+        mp3_path = tmp_path / "test.mp3"
+
+        # Create an 8-bit WAV file
+        sample_rate = 44100
+        channels = 2
+        sample_width = 1  # 8-bit
+        num_frames = 100
+
+        with wave.open(str(wav_path), "wb") as wav_file:
+            wav_file.setnchannels(channels)
+            wav_file.setsampwidth(sample_width)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(b"\x80" * (num_frames * channels * sample_width))
+
+        mock_encoder = MagicMock()
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            result = encode_to_mp3(wav_path, mp3_path)
+            assert result is False
+            assert not mp3_path.exists()

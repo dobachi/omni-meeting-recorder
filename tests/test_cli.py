@@ -130,7 +130,7 @@ class TestRecordCommand:
         mock_capture.create_session.side_effect = RuntimeError("No loopback device found")
         mock_capture_class.return_value = mock_capture
 
-        result = runner.invoke(app, ["start", "--loopback"])
+        result = runner.invoke(app, ["start", "--loopback", "--format", "wav"])
         assert result.exit_code == 1
         assert "No loopback device found" in result.stdout
 
@@ -141,7 +141,7 @@ class TestRecordCommand:
         mock_capture.create_session.side_effect = RuntimeError("No microphone device found")
         mock_capture_class.return_value = mock_capture
 
-        result = runner.invoke(app, ["start", "--mic"])
+        result = runner.invoke(app, ["start", "--mic", "--format", "wav"])
         assert result.exit_code == 1
         assert "No microphone device found" in result.stdout
 

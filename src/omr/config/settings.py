@@ -35,9 +35,10 @@ class AudioSettings(BaseModel):
 class OutputSettings(BaseModel):
     """Output file settings."""
 
-    format: AudioFormat = AudioFormat.WAV
+    format: AudioFormat = AudioFormat.MP3
     output_dir: Path = Path(".")
     filename_template: str = "recording_{timestamp}"
+    bitrate: Annotated[int, Field(ge=64, le=320)] = 128
 
 
 class RecordingSettings(BaseModel):
