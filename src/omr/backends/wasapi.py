@@ -1,15 +1,20 @@
 """WASAPI backend for Windows audio capture using PyAudioWPatch."""
 
+from __future__ import annotations
+
 import contextlib
 import threading
 import wave
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from omr.config.settings import AudioSettings
 from omr.core.device_manager import AudioDevice, DeviceType
+
+if TYPE_CHECKING:
+    from omr.core.aec_processor import AECProcessor
 
 
 @dataclass
@@ -196,6 +201,7 @@ class WasapiBackend:
         output_path: Path,
         stop_event: threading.Event,
         stereo_split: bool = True,
+        aec_enabled: bool = False,
         on_chunk: Callable[[bytes], None] | None = None,
     ) -> None:
         """Record audio from both mic and loopback devices to a single WAV file.
@@ -208,6 +214,7 @@ class WasapiBackend:
             output_path: Output WAV file path
             stop_event: Event to signal recording stop
             stereo_split: If True, left=mic, right=system. If False, mix both.
+            aec_enabled: If True, apply acoustic echo cancellation to mic signal.
             on_chunk: Callback for each output chunk
         """
         import struct
@@ -233,6 +240,21 @@ class WasapiBackend:
         loopback_channels = loopback_stream._config.channels
 
         sample_width = self._pyaudio.get_sample_size(pyaudio.paInt16)
+
+        # Initialize AEC processor if enabled
+        aec_processor: AECProcessor | None = None
+        if aec_enabled:
+            from omr.core.aec_processor import AECProcessor as AECProcessorClass
+            from omr.core.aec_processor import is_aec_available
+
+            if is_aec_available():
+                # Use 160 samples frame size (10ms at 16kHz, common for AEC)
+                # Scale frame size based on sample rate
+                aec_frame_size = max(160, output_sample_rate // 100)
+                aec_processor = AECProcessorClass(
+                    sample_rate=output_sample_rate,
+                    frame_size=aec_frame_size,
+                )
 
         # Thread-safe queues for audio data
         mic_queue: Queue[list[int]] = Queue(maxsize=100)
@@ -354,6 +376,17 @@ class WasapiBackend:
                             mic_chunk = mic_buffer[:] + [0] * (chunk_size - len(mic_buffer))
                             mic_buffer.clear()
 
+                        # Apply AEC if enabled
+                        if aec_processor is not None:
+                            processed = aec_processor.process_samples(
+                                mic_chunk, loopback_chunk
+                            )
+                            # Pad or truncate to match chunk_size
+                            if len(processed) < chunk_size:
+                                mic_chunk = processed + [0] * (chunk_size - len(processed))
+                            else:
+                                mic_chunk = processed[:chunk_size]
+
                         # Create stereo output
                         output_samples = []
                         for i in range(chunk_size):
@@ -385,7 +418,7 @@ class WasapiBackend:
             mic_stream.close()
             loopback_stream.close()
 
-    def __enter__(self) -> "WasapiBackend":
+    def __enter__(self) -> WasapiBackend:
         """Context manager entry."""
         self.initialize()
         return self

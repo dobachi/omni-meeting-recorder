@@ -31,6 +31,7 @@ class RecordingSession:
     mic_device: AudioDevice | None = None
     loopback_device: AudioDevice | None = None
     stereo_split: bool = True  # For BOTH mode: True=left:mic/right:system
+    aec_enabled: bool = False  # For BOTH mode: Enable acoustic echo cancellation
     state: RecordingState = field(default_factory=RecordingState)
     _stop_event: threading.Event = field(default_factory=threading.Event)
     _recording_thread: threading.Thread | None = None
@@ -88,6 +89,7 @@ class AudioCapture(AudioCaptureBase):
         mic_device_index: int | None = None,
         loopback_device_index: int | None = None,
         stereo_split: bool = True,
+        aec_enabled: bool = False,
     ) -> RecordingSession:
         """Create a new recording session.
 
@@ -97,6 +99,7 @@ class AudioCapture(AudioCaptureBase):
             mic_device_index: Specific mic device index (default device if None)
             loopback_device_index: Specific loopback device index (default if None)
             stereo_split: For BOTH mode - True: left=mic, right=system. False: mixed.
+            aec_enabled: For BOTH mode - Enable acoustic echo cancellation.
         """
         # Generate output filename if not provided
         if output_path is None:
@@ -134,6 +137,7 @@ class AudioCapture(AudioCaptureBase):
             mic_device=mic_device,
             loopback_device=loopback_device,
             stereo_split=stereo_split,
+            aec_enabled=aec_enabled,
         )
 
     def start_recording(self, session: RecordingSession) -> None:
@@ -174,6 +178,7 @@ class AudioCapture(AudioCaptureBase):
                             output_path=session.output_path,
                             stop_event=session.stop_event,
                             stereo_split=session.stereo_split,
+                            aec_enabled=session.aec_enabled,
                             on_chunk=on_chunk,
                         )
                     else:

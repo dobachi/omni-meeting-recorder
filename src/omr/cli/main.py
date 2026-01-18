@@ -59,6 +59,11 @@ def start_recording(
         "--stereo-split/--mix",
         help="Stereo split (left=mic, right=system) or mix both channels",
     ),
+    aec: bool = typer.Option(
+        False,
+        "--aec/--no-aec",
+        help="Enable acoustic echo cancellation (requires pyaec)",
+    ),
     output_format: Annotated[
         AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
     ] = AudioFormat.MP3,
@@ -77,6 +82,7 @@ def start_recording(
         mic_device=mic_device,
         loopback_device=loopback_device,
         stereo_split=stereo_split,
+        aec=aec,
         output_format=output_format,
         bitrate=bitrate,
         keep_wav=keep_wav,

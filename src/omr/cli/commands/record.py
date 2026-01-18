@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from omr.config.settings import AudioFormat, RecordingMode
+from omr.core.aec_processor import is_aec_available
 from omr.core.audio_capture import AudioCapture, RecordingSession
 from omr.core.encoder import encode_to_mp3, is_mp3_available
 
@@ -45,10 +46,11 @@ def _create_status_panel(session: RecordingSession) -> Panel:
         elapsed = (datetime.now() - state.start_time).total_seconds()
 
     if session.mode == RecordingMode.BOTH:
+        aec_status = " + AEC" if session.aec_enabled else ""
         if session.stereo_split:
-            mode_text = "Mic + System (Stereo: L=Mic, R=System)"
+            mode_text = f"Mic + System (Stereo: L=Mic, R=System){aec_status}"
         else:
-            mode_text = "Mic + System (Mixed)"
+            mode_text = f"Mic + System (Mixed){aec_status}"
     else:
         mode_text = {
             RecordingMode.LOOPBACK: "System Audio (Loopback)",
@@ -84,6 +86,11 @@ def start(
         "--stereo-split/--mix",
         help="Stereo split (left=mic, right=system) or mix both channels",
     ),
+    aec: bool = typer.Option(
+        False,
+        "--aec/--no-aec",
+        help="Enable acoustic echo cancellation (requires pyaec)",
+    ),
     output_format: Annotated[
         AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
     ] = AudioFormat.MP3,
@@ -101,19 +108,36 @@ def start(
         console.print("[dim]Install with: uv sync[/dim]")
         raise typer.Exit(1)
 
+    # Check AEC availability
+    aec_enabled = aec
+    if aec and not is_aec_available():
+        console.print(
+            "[yellow]Warning:[/yellow] pyaec is not installed. AEC will be disabled."
+        )
+        console.print("[dim]Install with: uv sync --extra aec[/dim]")
+        console.print()
+        aec_enabled = False
+
     # Determine recording mode
     if loopback and mic:
         mode = RecordingMode.BOTH
-        # Warn about potential echo issues when using both mic and loopback
-        console.print(
-            "[yellow]Warning:[/yellow] Using mic and loopback together may cause echo "
-            "if speakers are used."
-        )
-        console.print(
-            "[dim]Recommendation: Use headphones to prevent microphone from picking up "
-            "speaker audio.[/dim]"
-        )
-        console.print()
+        # Show info about AEC status
+        if aec_enabled:
+            console.print(
+                "[cyan]Info:[/cyan] Acoustic Echo Cancellation (AEC) is enabled."
+            )
+            console.print()
+        else:
+            # Warn about potential echo issues when using both mic and loopback
+            console.print(
+                "[yellow]Warning:[/yellow] Using mic and loopback together may cause echo "
+                "if speakers are used."
+            )
+            console.print(
+                "[dim]Recommendation: Use --aec to enable echo cancellation, or use "
+                "headphones to prevent microphone from picking up speaker audio.[/dim]"
+            )
+            console.print()
     elif mic:
         mode = RecordingMode.MIC
     elif loopback:
@@ -144,6 +168,7 @@ def start(
             mic_device_index=mic_device,
             loopback_device_index=loopback_device,
             stereo_split=stereo_split,
+            aec_enabled=aec_enabled,
         )
 
         # Show device info

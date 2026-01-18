@@ -33,6 +33,7 @@ omr = "omr.cli.main:app"
 
 [project.optional-dependencies]
 flac = ["pyflac>=2.2.0"]
+aec = ["pyaec>=1.0.0"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
