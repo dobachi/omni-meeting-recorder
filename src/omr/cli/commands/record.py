@@ -114,7 +114,7 @@ def start(
         console.print(
             "[yellow]Warning:[/yellow] pyaec is not installed. AEC will be disabled."
         )
-        console.print("[dim]Install with: uv sync --extra aec[/dim]")
+        console.print("[dim]Install with: uv sync[/dim]")
         console.print()
         aec_enabled = False
 

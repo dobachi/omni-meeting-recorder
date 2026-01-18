@@ -52,7 +52,7 @@ class AECProcessor:
         """
         if not is_aec_available():
             raise RuntimeError(
-                "pyaec is not installed. Install with: uv sync --extra aec"
+                "pyaec is not installed. Install with: uv sync"
             )
 
         from pyaec import AEC
