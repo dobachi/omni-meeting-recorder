@@ -23,6 +23,14 @@ A Windows CLI tool for recording online meeting audio. Capture both remote parti
 
 ## Installation
 
+### Try Without Installing
+
+If you have `uv` installed, you can try omr immediately:
+
+```bash
+uvx --from git+https://github.com/dobachi/omni-meeting-recorder.git omr start
+```
+
 ### 1. Install Python
 
 If Python 3.11+ is not installed:
@@ -90,12 +98,6 @@ omr start
 ```
 
 That's it! Press `Ctrl+C` to stop. Output: `recording_YYYYMMDD_HHMMSS.mp3`
-
-### Try Without Installing
-
-```bash
-uvx --from git+https://github.com/dobachi/omni-meeting-recorder.git omr start
-```
 
 ## Quick Start
 

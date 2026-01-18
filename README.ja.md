@@ -23,6 +23,14 @@ Windows向けオンライン会議の音声録音CLIツール。スピーカー�
 
 ## インストール
 
+### インストールせずに試す
+
+`uv`がインストールされていれば、すぐに試せます：
+
+```bash
+uvx --from git+https://github.com/dobachi/omni-meeting-recorder.git omr start
+```
+
 ### 1. Pythonのインストール
 
 Python 3.11以上がインストールされていない場合:
@@ -90,12 +98,6 @@ omr start
 ```
 
 これだけ！`Ctrl+C`で停止。出力: `recording_YYYYMMDD_HHMMSS.mp3`
-
-### インストールせずに試す
-
-```bash
-uvx --from git+https://github.com/dobachi/omni-meeting-recorder.git omr start
-```
 
 ## クイックスタート
 
