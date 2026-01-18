@@ -42,10 +42,10 @@ class TestAECProcessorWithMock:
 
     @pytest.fixture
     def mock_aec(self) -> MagicMock:
-        """Create a mock AEC instance."""
+        """Create a mock Aec instance."""
         mock = MagicMock()
         # Return input unchanged for testing
-        mock.cancel.side_effect = lambda mic, ref: mic
+        mock.cancel_echo.side_effect = lambda mic, ref: mic
         return mock
 
     @pytest.fixture
@@ -103,7 +103,7 @@ class TestAECProcessorWithMock:
 
         # Should process and return result
         assert len(result) == 480
-        mock_aec.cancel.assert_called_once()
+        mock_aec.cancel_echo.assert_called_once()
 
     def test_process_samples_multiple_frames(
         self, processor: AECProcessor, mock_aec: MagicMock
@@ -115,7 +115,7 @@ class TestAECProcessorWithMock:
 
         # Should process 2 complete frames (960 samples)
         assert len(result) == 960
-        assert mock_aec.cancel.call_count == 2
+        assert mock_aec.cancel_echo.call_count == 2
 
         # 40 samples should remain in buffer
         assert len(processor._mic_buffer) == 40

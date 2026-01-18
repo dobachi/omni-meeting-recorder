@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from pyaec import AEC
+    from pyaec import Aec
 
 _AEC_AVAILABLE: bool | None = None
 
@@ -55,13 +55,13 @@ class AECProcessor:
                 "pyaec is not installed. Install with: uv sync"
             )
 
-        from pyaec import AEC
+        from pyaec import Aec
 
         self._sample_rate = sample_rate
         self._frame_size = frame_size
         self._filter_length = filter_length or frame_size * 10
 
-        self._aec: AEC = AEC(
+        self._aec: Aec = Aec(
             frame_size=self._frame_size,
             filter_length=self._filter_length,
             sample_rate=self._sample_rate,
@@ -116,7 +116,7 @@ class AECProcessor:
             self._ref_buffer = self._ref_buffer[self._frame_size :]
 
             # Process through AEC
-            processed = self._aec.cancel(mic_frame, ref_frame)
+            processed = self._aec.cancel_echo(mic_frame, ref_frame)
             self._output_buffer.extend(processed)
 
         # Return accumulated output
@@ -168,9 +168,9 @@ class AECProcessor:
 
     def reset(self) -> None:
         """Reset AEC state and clear buffers."""
-        from pyaec import AEC
+        from pyaec import Aec
 
-        self._aec = AEC(
+        self._aec = Aec(
             frame_size=self._frame_size,
             filter_length=self._filter_length,
             sample_rate=self._sample_rate,

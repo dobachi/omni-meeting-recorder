@@ -1,6 +1,6 @@
 """Type stubs for pyaec (Python Acoustic Echo Cancellation library)."""
 
-class AEC:
+class Aec:
     """Acoustic Echo Cancellation processor.
 
     Uses adaptive filtering to remove echo from microphone signal
@@ -10,44 +10,30 @@ class AEC:
     def __init__(
         self,
         frame_size: int,
-        filter_length: int | None = None,
-        sample_rate: int | None = None,
+        filter_length: int,
+        sample_rate: int,
+        enable_preprocess: bool = True,
     ) -> None:
         """Initialize AEC processor.
 
         Args:
             frame_size: Number of samples per frame (typically 160-1024)
-            filter_length: Adaptive filter length (default: frame_size * 10)
-            sample_rate: Sample rate in Hz (default: 16000)
+            filter_length: Adaptive filter length
+            sample_rate: Sample rate in Hz
+            enable_preprocess: Enable preprocessing (default: True)
         """
         ...
 
-    def process(
+    def cancel_echo(
         self,
-        mic_frame: list[int],
-        reference_frame: list[int],
+        rec_buffer: list[int],
+        echo_buffer: list[int],
     ) -> list[int]:
-        """Process a frame of audio through AEC.
+        """Cancel echo from microphone signal.
 
         Args:
-            mic_frame: Microphone input samples (may contain echo)
-            reference_frame: Reference signal (speaker/loopback output)
-
-        Returns:
-            Echo-cancelled microphone samples
-        """
-        ...
-
-    def cancel(
-        self,
-        mic_frame: list[int],
-        reference_frame: list[int],
-    ) -> list[int]:
-        """Alias for process() - cancel echo from microphone signal.
-
-        Args:
-            mic_frame: Microphone input samples (may contain echo)
-            reference_frame: Reference signal (speaker/loopback output)
+            rec_buffer: Microphone input samples (may contain echo)
+            echo_buffer: Reference signal (speaker/loopback output)
 
         Returns:
             Echo-cancelled microphone samples
