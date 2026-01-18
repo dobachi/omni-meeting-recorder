@@ -30,6 +30,7 @@ class RecordingSession:
     output_path: Path
     mic_device: AudioDevice | None = None
     loopback_device: AudioDevice | None = None
+    stereo_split: bool = True  # For BOTH mode: True=left:mic/right:system
     state: RecordingState = field(default_factory=RecordingState)
     _stop_event: threading.Event = field(default_factory=threading.Event)
     _recording_thread: threading.Thread | None = None
@@ -86,8 +87,17 @@ class AudioCapture(AudioCaptureBase):
         output_path: Path | None = None,
         mic_device_index: int | None = None,
         loopback_device_index: int | None = None,
+        stereo_split: bool = True,
     ) -> RecordingSession:
-        """Create a new recording session."""
+        """Create a new recording session.
+
+        Args:
+            mode: Recording mode (LOOPBACK, MIC, or BOTH)
+            output_path: Output file path (auto-generated if None)
+            mic_device_index: Specific mic device index (default device if None)
+            loopback_device_index: Specific loopback device index (default if None)
+            stereo_split: For BOTH mode - True: left=mic, right=system. False: mixed.
+        """
         # Generate output filename if not provided
         if output_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -123,6 +133,7 @@ class AudioCapture(AudioCaptureBase):
             output_path=output_path,
             mic_device=mic_device,
             loopback_device=loopback_device,
+            stereo_split=stereo_split,
         )
 
     def start_recording(self, session: RecordingSession) -> None:
@@ -156,10 +167,19 @@ class AudioCapture(AudioCaptureBase):
                         on_chunk=on_chunk,
                     )
                 elif session.mode == RecordingMode.BOTH:
-                    # Phase 2 feature: dual recording
-                    raise NotImplementedError(
-                        "Dual recording (BOTH mode) is not yet implemented"
-                    )
+                    if session.mic_device and session.loopback_device:
+                        self._backend.record_dual_to_file(
+                            mic_device=session.mic_device,
+                            loopback_device=session.loopback_device,
+                            output_path=session.output_path,
+                            stop_event=session.stop_event,
+                            stereo_split=session.stereo_split,
+                            on_chunk=on_chunk,
+                        )
+                    else:
+                        raise RuntimeError(
+                            "Both mic and loopback devices are required for BOTH mode"
+                        )
             except Exception as e:
                 session.state.error = str(e)
             finally:

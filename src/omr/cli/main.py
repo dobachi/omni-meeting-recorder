@@ -51,6 +51,11 @@ def start_recording(
     loopback_device: int = typer.Option(
         None, "--loopback-device", help="Loopback device index"
     ),
+    stereo_split: bool = typer.Option(
+        True,
+        "--stereo-split/--mix",
+        help="Stereo split (left=mic, right=system) or mix both channels",
+    ),
 ) -> None:
     """Start recording audio. Shortcut for 'omr record start'."""
     record.start(
@@ -59,6 +64,7 @@ def start_recording(
         output=output,
         mic_device=mic_device,
         loopback_device=loopback_device,
+        stereo_split=stereo_split,
     )
 
 

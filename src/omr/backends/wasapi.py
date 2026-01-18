@@ -185,6 +185,109 @@ class WasapiBackend:
         finally:
             stream.close()
 
+    def record_dual_to_file(
+        self,
+        mic_device: AudioDevice,
+        loopback_device: AudioDevice,
+        output_path: Path,
+        stop_event: threading.Event,
+        stereo_split: bool = True,
+        on_chunk: Callable[[bytes], None] | None = None,
+    ) -> None:
+        """Record audio from both mic and loopback devices to a single WAV file.
+
+        Args:
+            mic_device: Microphone device
+            loopback_device: Loopback device for system audio
+            output_path: Output WAV file path
+            stop_event: Event to signal recording stop
+            stereo_split: If True, left=mic, right=system. If False, mix both.
+            on_chunk: Callback for each output chunk
+        """
+        import pyaudiowpatch as pyaudio
+
+        from omr.core.mixer import AudioMixer, MixerConfig
+
+        if self._pyaudio is None:
+            self.initialize()
+
+        # Use the higher sample rate between the two devices
+        output_sample_rate = max(
+            int(mic_device.default_sample_rate),
+            int(loopback_device.default_sample_rate),
+        )
+
+        # Create streams
+        mic_stream = self.create_stream(mic_device, sample_rate=output_sample_rate)
+        loopback_stream = self.create_stream(loopback_device, sample_rate=output_sample_rate)
+
+        # Create mixer
+        mixer_config = MixerConfig(
+            sample_rate=output_sample_rate,
+            channels=2,  # Stereo output
+            chunk_size=self._settings.chunk_size,
+            stereo_split=stereo_split,
+        )
+        mixer = AudioMixer(mixer_config)
+
+        sample_width = self._pyaudio.get_sample_size(pyaudio.paInt16)
+
+        # Reader threads
+        def mic_reader() -> None:
+            while not stop_event.is_set():
+                try:
+                    data = mic_stream.read()
+                    mixer.add_mic_data(data)
+                except Exception:
+                    if stop_event.is_set():
+                        break
+
+        def loopback_reader() -> None:
+            while not stop_event.is_set():
+                try:
+                    data = loopback_stream.read()
+                    mixer.add_loopback_data(data)
+                except Exception:
+                    if stop_event.is_set():
+                        break
+
+        try:
+            # Open streams
+            mic_stream.open()
+            loopback_stream.open()
+
+            # Start mixer
+            mixer.start()
+
+            # Start reader threads
+            mic_thread = threading.Thread(target=mic_reader, daemon=True)
+            loopback_thread = threading.Thread(target=loopback_reader, daemon=True)
+            mic_thread.start()
+            loopback_thread.start()
+
+            # Write mixed output to file
+            with wave.open(str(output_path), "wb") as wf:
+                wf.setnchannels(2)  # Stereo
+                wf.setsampwidth(sample_width)
+                wf.setframerate(output_sample_rate)
+
+                while not stop_event.is_set():
+                    mixed_data = mixer.get_output(timeout=0.1)
+                    if mixed_data:
+                        wf.writeframes(mixed_data)
+                        if on_chunk:
+                            on_chunk(mixed_data)
+
+            # Wait for reader threads to finish
+            stop_event.set()
+            mic_thread.join(timeout=1.0)
+            loopback_thread.join(timeout=1.0)
+
+        finally:
+            mixer.stop()
+            mic_stream.close()
+            loopback_stream.close()
+
     def __enter__(self) -> "WasapiBackend":
         """Context manager entry."""
         self.initialize()

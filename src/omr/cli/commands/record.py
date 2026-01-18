@@ -41,14 +41,19 @@ def _create_status_panel(session: RecordingSession) -> Panel:
     if state.start_time:
         elapsed = (datetime.now() - state.start_time).total_seconds()
 
-    mode_text = {
-        RecordingMode.LOOPBACK: "System Audio (Loopback)",
-        RecordingMode.MIC: "Microphone",
-        RecordingMode.BOTH: "Mic + System Audio",
-    }.get(session.mode, "Unknown")
+    if session.mode == RecordingMode.BOTH:
+        if session.stereo_split:
+            mode_text = "Mic + System (Stereo: L=Mic, R=System)"
+        else:
+            mode_text = "Mic + System (Mixed)"
+    else:
+        mode_text = {
+            RecordingMode.LOOPBACK: "System Audio (Loopback)",
+            RecordingMode.MIC: "Microphone",
+        }.get(session.mode, "Unknown")
 
     status_lines = [
-        f"[bold green]● Recording[/bold green]",
+        "[bold green]● Recording[/bold green]",
         "",
         f"[cyan]Mode:[/cyan] {mode_text}",
         f"[cyan]Duration:[/cyan] {_format_duration(elapsed)}",
@@ -70,6 +75,11 @@ def start(
     mic_device: int | None = typer.Option(None, "--mic-device", help="Microphone device index"),
     loopback_device: int | None = typer.Option(
         None, "--loopback-device", help="Loopback device index"
+    ),
+    stereo_split: bool = typer.Option(
+        True,
+        "--stereo-split/--mix",
+        help="Stereo split (left=mic, right=system) or mix both channels",
     ),
 ) -> None:
     """Start recording audio."""
@@ -101,6 +111,7 @@ def start(
             output_path=output_path,
             mic_device_index=mic_device,
             loopback_device_index=loopback_device,
+            stereo_split=stereo_split,
         )
 
         # Show device info
