@@ -1,7 +1,5 @@
 """Recording commands for Omni Meeting Recorder."""
 
-import signal
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -17,19 +15,6 @@ from omr.core.audio_capture import AudioCapture, RecordingSession
 
 app = typer.Typer(help="Recording commands")
 console = Console()
-
-# Global session for signal handling
-_current_session: RecordingSession | None = None
-_audio_capture: AudioCapture | None = None
-
-
-def _signal_handler(signum: int, frame: object) -> None:
-    """Handle interrupt signal to stop recording gracefully."""
-    global _current_session, _audio_capture
-
-    if _current_session is not None:
-        console.print("\n[yellow]Stopping recording...[/yellow]")
-        _current_session.request_stop()
 
 
 def _format_duration(seconds: float) -> str:
@@ -88,8 +73,6 @@ def start(
     ),
 ) -> None:
     """Start recording audio."""
-    global _current_session, _audio_capture
-
     # Determine recording mode
     if loopback and mic:
         mode = RecordingMode.BOTH
@@ -105,12 +88,15 @@ def start(
     # Parse output path
     output_path = Path(output) if output else None
 
+    audio_capture: AudioCapture | None = None
+    session: RecordingSession | None = None
+
     try:
-        _audio_capture = AudioCapture()
-        _audio_capture.initialize()
+        audio_capture = AudioCapture()
+        audio_capture.initialize()
 
         # Create session
-        _current_session = _audio_capture.create_session(
+        session = audio_capture.create_session(
             mode=mode,
             output_path=output_path,
             mic_device_index=mic_device,
@@ -118,32 +104,34 @@ def start(
         )
 
         # Show device info
-        if _current_session.mic_device:
-            console.print(f"[cyan]Microphone:[/cyan] {_current_session.mic_device.name}")
-        if _current_session.loopback_device:
-            console.print(f"[cyan]Loopback:[/cyan] {_current_session.loopback_device.name}")
-        console.print(f"[cyan]Output:[/cyan] {_current_session.output_path}")
+        if session.mic_device:
+            console.print(f"[cyan]Microphone:[/cyan] {session.mic_device.name}")
+        if session.loopback_device:
+            console.print(f"[cyan]Loopback:[/cyan] {session.loopback_device.name}")
+        console.print(f"[cyan]Output:[/cyan] {session.output_path}")
         console.print()
 
-        # Set up signal handler
-        signal.signal(signal.SIGINT, _signal_handler)
-        if sys.platform != "win32":
-            signal.signal(signal.SIGTERM, _signal_handler)
-
         # Start recording
-        _audio_capture.start_recording(_current_session)
+        audio_capture.start_recording(session)
         console.print("[green]Recording started![/green]")
         console.print("[dim]Press Ctrl+C to stop[/dim]")
         console.print()
 
-        # Show live status
-        with Live(_create_status_panel(_current_session), refresh_per_second=2) as live:
-            while _current_session.state.is_recording:
-                live.update(_create_status_panel(_current_session))
-                time.sleep(0.5)
+        # Show live status - use try/except for KeyboardInterrupt (works better on Windows)
+        try:
+            with Live(_create_status_panel(session), refresh_per_second=2, transient=True) as live:
+                while session.state.is_recording:
+                    live.update(_create_status_panel(session))
+                    # Use shorter sleep for more responsive Ctrl+C handling
+                    time.sleep(0.1)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Stopping recording...[/yellow]")
+            session.request_stop()
+            # Wait for recording thread to finish
+            audio_capture.stop_recording(session)
 
         # Recording stopped
-        state = _current_session.state
+        state = session.state
         if state.error:
             console.print(f"\n[red]Recording error:[/red] {state.error}")
             raise typer.Exit(1)
@@ -165,10 +153,8 @@ def start(
         console.print(f"[yellow]Not implemented:[/yellow] {e}")
         raise typer.Exit(1)
     finally:
-        if _audio_capture:
-            _audio_capture.terminate()
-        _current_session = None
-        _audio_capture = None
+        if audio_capture:
+            audio_capture.terminate()
 
 
 @app.command("stop")
