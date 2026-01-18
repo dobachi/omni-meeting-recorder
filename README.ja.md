@@ -238,29 +238,26 @@ uv run omr start --mic --loopback
 
 ```bash
 # 依存関係（開発用含む）をインストール
-make dev-install
-# または: uv sync --extra dev
+uv sync --extra dev
 ```
 
 ### チェックの実行
 
-`make`を使ってリント、型チェック、テストを実行できます：
+`uv run task`を使ってリント、型チェック、テストを実行できます：
 
 ```bash
 # 全チェック実行（lint + typecheck + test）
-make check
+uv run task check
 
 # 個別に実行:
-make lint       # ruffでリント
-make typecheck  # mypyで型チェック
-make test       # pytestでテスト
+uv run task lint       # ruffでリント
+uv run task typecheck  # mypyで型チェック
+uv run task test       # pytestでテスト
 
 # その他のコマンド:
-make lint-fix   # リント問題を自動修正
-make format     # ruffでコード整形
-make test-cov   # カバレッジ付きテスト
-make clean      # キャッシュファイルを削除
-make help       # 利用可能なコマンド一覧
+uv run task lint-fix   # リント問題を自動修正
+uv run task format     # ruffでコード整形
+uv run task test-cov   # カバレッジ付きテスト
 ```
 
 ### プロジェクト構成

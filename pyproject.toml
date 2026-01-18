@@ -38,6 +38,7 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.1.0",
     "mypy>=1.0",
+    "taskipy>=1.12.0",
 ]
 
 [build-system]
@@ -60,6 +61,15 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 mypy_path = "stubs"
+
+[tool.taskipy.tasks]
+lint = "ruff check src/ tests/"
+lint-fix = "ruff check --fix src/ tests/"
+format = "ruff format src/ tests/"
+typecheck = "mypy src/"
+test = "pytest"
+test-cov = "pytest --cov=src/omr --cov-report=term-missing"
+check = "task lint && task typecheck && task test"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
