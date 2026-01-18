@@ -55,12 +55,12 @@ def start_recording(
         None, "--loopback-device", help="Loopback device index"
     ),
     stereo_split: bool = typer.Option(
-        True,
+        False,
         "--stereo-split/--mix",
         help="Stereo split (left=mic, right=system) or mix both channels",
     ),
     aec: bool = typer.Option(
-        False,
+        True,
         "--aec/--no-aec",
         help="Enable acoustic echo cancellation (requires pyaec)",
     ),
