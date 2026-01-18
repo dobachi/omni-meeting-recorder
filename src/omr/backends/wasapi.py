@@ -324,6 +324,7 @@ class WasapiBackend:
         mic_rms_history: list[float] = []
         loopback_rms_history: list[float] = []
         agc_window = 50  # Number of chunks to average for stable gain
+        target_rms = 8000.0  # Target RMS level (~25% of 16-bit peak)
 
         def mic_reader_thread() -> None:
             """Thread to read from microphone."""
@@ -408,7 +409,7 @@ class WasapiBackend:
                                 mic_chunk, loopback_chunk
                             )
 
-                        # Automatic gain control: match mic volume to loopback
+                        # Automatic gain control: normalize both channels to target level
                         mic_rms = calc_rms(mic_chunk)
                         loopback_rms = calc_rms(loopback_chunk)
 
@@ -422,15 +423,21 @@ class WasapiBackend:
                             if len(loopback_rms_history) > agc_window:
                                 loopback_rms_history.pop(0)
 
-                        # Calculate and apply gain
-                        if mic_rms_history and loopback_rms_history:
+                        # Normalize mic to target level
+                        if mic_rms_history:
                             avg_mic_rms = sum(mic_rms_history) / len(mic_rms_history)
+                            if avg_mic_rms > 50:
+                                mic_gain = target_rms / avg_mic_rms
+                                mic_gain = max(0.5, min(6.0, mic_gain))
+                                mic_chunk = apply_gain(mic_chunk, mic_gain)
+
+                        # Normalize loopback to target level
+                        if loopback_rms_history:
                             avg_loopback_rms = sum(loopback_rms_history) / len(loopback_rms_history)
-                            if avg_mic_rms > 50:  # Avoid division issues
-                                target_gain = avg_loopback_rms / avg_mic_rms
-                                # Limit gain to reasonable range (0.5x to 4x)
-                                target_gain = max(0.5, min(4.0, target_gain))
-                                mic_chunk = apply_gain(mic_chunk, target_gain)
+                            if avg_loopback_rms > 50:
+                                loopback_gain = target_rms / avg_loopback_rms
+                                loopback_gain = max(0.5, min(6.0, loopback_gain))
+                                loopback_chunk = apply_gain(loopback_chunk, loopback_gain)
 
                         # Create stereo output
                         output_samples = []
