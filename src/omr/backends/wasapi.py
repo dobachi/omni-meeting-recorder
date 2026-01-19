@@ -369,7 +369,7 @@ class WasapiBackend:
         # Automatic gain control state
         mic_rms_history: list[float] = []
         loopback_rms_history: list[float] = []
-        agc_window = 50  # Number of chunks to average for stable gain
+        agc_window = 100  # Number of chunks to average for stable gain
         loopback_target_rms = 8000.0  # Target RMS level (~25% of 16-bit peak)
         mic_target_rms = 16000.0  # Higher target for mic (~49% of 16-bit peak)
 
@@ -476,7 +476,7 @@ class WasapiBackend:
                             avg_mic_rms = sum(mic_rms_history) / len(mic_rms_history)
                             if avg_mic_rms > 50:
                                 auto_mic_gain = mic_target_rms / avg_mic_rms
-                                auto_mic_gain = max(0.5, min(12.0, auto_mic_gain))
+                                auto_mic_gain = max(0.8, min(4.0, auto_mic_gain))
                                 # Apply user gain multiplier
                                 total_mic_gain = auto_mic_gain * mic_gain
                                 mic_chunk = apply_gain(mic_chunk, total_mic_gain)
@@ -486,7 +486,7 @@ class WasapiBackend:
                             avg_loopback_rms = sum(loopback_rms_history) / len(loopback_rms_history)
                             if avg_loopback_rms > 50:
                                 auto_loopback_gain = loopback_target_rms / avg_loopback_rms
-                                auto_loopback_gain = max(0.5, min(6.0, auto_loopback_gain))
+                                auto_loopback_gain = max(0.8, min(3.0, auto_loopback_gain))
                                 # Apply user gain multiplier
                                 total_loopback_gain = auto_loopback_gain * loopback_gain
                                 loopback_chunk = apply_gain(loopback_chunk, total_loopback_gain)
