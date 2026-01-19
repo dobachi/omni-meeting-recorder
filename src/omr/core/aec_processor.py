@@ -18,12 +18,9 @@ def is_aec_available() -> bool:
     """
     global _AEC_AVAILABLE
     if _AEC_AVAILABLE is None:
-        try:
-            import pyaec  # noqa: F401
+        import importlib.util
 
-            _AEC_AVAILABLE = True
-        except ImportError:
-            _AEC_AVAILABLE = False
+        _AEC_AVAILABLE = importlib.util.find_spec("pyaec") is not None
     return _AEC_AVAILABLE
 
 

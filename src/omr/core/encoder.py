@@ -2,6 +2,92 @@
 
 import wave
 from pathlib import Path
+from types import TracebackType
+from typing import BinaryIO, Protocol
+
+
+class AudioWriter(Protocol):
+    """音声書き込みインターフェース（WAVとMP3で共通）."""
+
+    def write(self, data: bytes) -> None:
+        """音声データを書き込む."""
+        ...
+
+    def close(self) -> None:
+        """ライターを閉じる."""
+        ...
+
+
+class StreamingMP3Encoder:
+    """リアルタイムストリーミングMP3エンコーダー.
+
+    録音中にPCMデータをチャンクごとにMP3エンコードしてファイルに書き込む。
+    長時間録音でもメモリを消費しない。
+    """
+
+    def __init__(
+        self,
+        output_path: Path,
+        sample_rate: int,
+        channels: int,
+        bitrate: int = 128,
+        quality: int = 2,
+    ) -> None:
+        """StreamingMP3Encoderを初期化.
+
+        Args:
+            output_path: 出力MP3ファイルパス
+            sample_rate: サンプルレート (Hz)
+            channels: チャンネル数 (1=モノラル, 2=ステレオ)
+            bitrate: MP3ビットレート (kbps, default: 128)
+            quality: エンコード品質 (0-9, 2=high quality)
+        """
+        import lameenc
+
+        self._output_path = output_path
+        self._file: BinaryIO = output_path.open("wb")
+        self._encoder = lameenc.Encoder()
+        self._encoder.set_bit_rate(bitrate)
+        self._encoder.set_in_sample_rate(sample_rate)
+        self._encoder.set_channels(channels)
+        self._encoder.set_quality(quality)
+        self._closed = False
+
+    def write(self, data: bytes) -> None:
+        """PCMデータをエンコードしてファイルに書き込む.
+
+        Args:
+            data: 16-bit PCMデータ
+        """
+        if self._closed:
+            raise RuntimeError("Encoder is already closed")
+        mp3_data = self._encoder.encode(data)
+        if mp3_data:
+            self._file.write(mp3_data)
+
+    def close(self) -> None:
+        """エンコーダーを閉じてファイルを完成させる."""
+        if self._closed:
+            return
+        self._closed = True
+        # 残りのデータをフラッシュ
+        final_data = self._encoder.flush()
+        if final_data:
+            self._file.write(final_data)
+        self._file.close()
+
+    def __enter__(self) -> "StreamingMP3Encoder":
+        """Context manager entry."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Context manager exit."""
+        self.close()
 
 
 def is_mp3_available() -> bool:
@@ -10,12 +96,9 @@ def is_mp3_available() -> bool:
     Returns:
         True if lameenc is available, False otherwise.
     """
-    try:
-        import lameenc  # type: ignore[import-not-found]  # noqa: F401
+    import importlib.util
 
-        return True
-    except ImportError:
-        return False
+    return importlib.util.find_spec("lameenc") is not None
 
 
 def encode_to_mp3(wav_path: Path, mp3_path: Path, bitrate: int = 128) -> bool:

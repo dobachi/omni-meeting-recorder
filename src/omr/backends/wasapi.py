@@ -8,13 +8,25 @@ import wave
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from omr.config.settings import AudioSettings
 from omr.core.device_manager import AudioDevice, DeviceType
 
 if TYPE_CHECKING:
     from omr.core.aec_processor import AECProcessor
+
+
+class AudioWriter(Protocol):
+    """音声書き込みインターフェース（WAVとMP3で共通）."""
+
+    def write(self, data: bytes) -> None:
+        """音声データを書き込む."""
+        ...
+
+    def close(self) -> None:
+        """ライターを閉じる."""
+        ...
 
 
 @dataclass
@@ -159,8 +171,18 @@ class WasapiBackend:
         output_path: Path,
         stop_event: threading.Event,
         on_chunk: Callable[[bytes], None] | None = None,
+        writer: AudioWriter | None = None,
     ) -> None:
-        """Record audio from a device to a WAV file."""
+        """Record audio from a device to a file.
+
+        Args:
+            device: Audio device to record from
+            output_path: Output file path (used for WAV if writer is None)
+            stop_event: Event to signal recording stop
+            on_chunk: Optional callback for each audio chunk
+            writer: Optional AudioWriter for direct output (e.g., StreamingMP3Encoder).
+                    If None, records to WAV file at output_path.
+        """
         import pyaudiowpatch as pyaudio
 
         if self._pyaudio is None:
@@ -176,21 +198,36 @@ class WasapiBackend:
         sample_rate = stream._config.sample_rate
 
         try:
-            with wave.open(str(output_path), "wb") as wf:
-                wf.setnchannels(channels)
-                wf.setsampwidth(sample_width)
-                wf.setframerate(sample_rate)
-
+            if writer is not None:
+                # Use provided writer (e.g., StreamingMP3Encoder)
                 while not stop_event.is_set():
                     try:
                         data = stream.read()
-                        wf.writeframes(data)
+                        writer.write(data)
                         if on_chunk:
                             on_chunk(data)
                     except Exception:
                         if stop_event.is_set():
                             break
                         raise
+                writer.close()
+            else:
+                # Default: write to WAV file
+                with wave.open(str(output_path), "wb") as wf:
+                    wf.setnchannels(channels)
+                    wf.setsampwidth(sample_width)
+                    wf.setframerate(sample_rate)
+
+                    while not stop_event.is_set():
+                        try:
+                            data = stream.read()
+                            wf.writeframes(data)
+                            if on_chunk:
+                                on_chunk(data)
+                        except Exception:
+                            if stop_event.is_set():
+                                break
+                            raise
         finally:
             stream.close()
 
@@ -206,15 +243,16 @@ class WasapiBackend:
         loopback_gain: float = 1.0,
         mix_ratio: float = 0.5,
         on_chunk: Callable[[bytes], None] | None = None,
+        writer: AudioWriter | None = None,
     ) -> None:
-        """Record audio from both mic and loopback devices to a single WAV file.
+        """Record audio from both mic and loopback devices to a single file.
 
         Uses parallel thread reading for proper timing synchronization.
 
         Args:
             mic_device: Microphone device
             loopback_device: Loopback device for system audio
-            output_path: Output WAV file path
+            output_path: Output file path (used for WAV if writer is None)
             stop_event: Event to signal recording stop
             stereo_split: If True, left=mic, right=system. If False, mix both.
             aec_enabled: If True, apply acoustic echo cancellation to mic signal.
@@ -222,6 +260,8 @@ class WasapiBackend:
             loopback_gain: System audio gain multiplier (applied after AGC).
             mix_ratio: Mic/system mix ratio (0.0-1.0). Higher = more mic.
             on_chunk: Callback for each output chunk
+            writer: Optional AudioWriter for direct output (e.g., StreamingMP3Encoder).
+                    If None, records to WAV file at output_path.
         """
         import struct
         from queue import Empty, Queue
@@ -376,10 +416,11 @@ class WasapiBackend:
             mic_thread.start()
             loopback_thread.start()
 
-            with wave.open(str(output_path), "wb") as wf:
-                wf.setnchannels(2)  # Stereo output
-                wf.setsampwidth(sample_width)
-                wf.setframerate(output_sample_rate)
+            # Helper function for the main recording loop
+            def recording_loop(write_func: Callable[[bytes], None]) -> None:
+                """Main recording loop that processes audio data."""
+                nonlocal mic_buffer, loopback_buffer
+                nonlocal mic_rms_history, loopback_rms_history
 
                 while not stop_event.is_set():
                     # Drain queues into buffers
@@ -464,7 +505,7 @@ class WasapiBackend:
 
                         clamped = [max(-32768, min(32767, s)) for s in output_samples]
                         output_data = struct.pack(f"<{len(clamped)}h", *clamped)
-                        wf.writeframes(output_data)
+                        write_func(output_data)
 
                         if on_chunk:
                             on_chunk(output_data)
@@ -472,6 +513,19 @@ class WasapiBackend:
                         # No loopback data yet, small sleep to avoid busy loop
                         import time
                         time.sleep(0.001)
+
+            # Execute recording loop with appropriate writer
+            if writer is not None:
+                # Use provided writer (e.g., StreamingMP3Encoder)
+                recording_loop(writer.write)
+                writer.close()
+            else:
+                # Default: write to WAV file
+                with wave.open(str(output_path), "wb") as wf:
+                    wf.setnchannels(2)  # Stereo output
+                    wf.setsampwidth(sample_width)
+                    wf.setframerate(output_sample_rate)
+                    recording_loop(wf.writeframes)
 
             # Wait for threads to finish
             mic_thread.join(timeout=1.0)

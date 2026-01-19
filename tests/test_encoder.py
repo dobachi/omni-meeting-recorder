@@ -4,7 +4,7 @@ import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from omr.core.encoder import encode_to_mp3, is_mp3_available
+from omr.core.encoder import StreamingMP3Encoder, encode_to_mp3, is_mp3_available
 
 
 def _create_test_wav(path: Path, duration_ms: int = 100) -> None:
@@ -26,18 +26,14 @@ class TestIsMp3Available:
     """Tests for is_mp3_available function."""
 
     def test_returns_true_when_lameenc_installed(self) -> None:
-        """Returns True when lameenc can be imported."""
-        mock_lameenc = MagicMock()
-        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
-            # Need to reload to get the patched import
+        """Returns True when lameenc can be found."""
+        mock_spec = MagicMock()
+        with patch("importlib.util.find_spec", return_value=mock_spec):
             assert is_mp3_available() is True
 
     def test_returns_false_when_lameenc_not_installed(self) -> None:
-        """Returns False when lameenc import fails."""
-        with (
-            patch.dict("sys.modules", {"lameenc": None}),
-            patch("builtins.__import__", side_effect=ImportError),
-        ):
+        """Returns False when lameenc cannot be found."""
+        with patch("importlib.util.find_spec", return_value=None):
             assert is_mp3_available() is False
 
 
@@ -148,3 +144,139 @@ class TestEncodeToMp3:
             result = encode_to_mp3(wav_path, mp3_path)
             assert result is False
             assert not mp3_path.exists()
+
+
+class TestStreamingMP3Encoder:
+    """Tests for StreamingMP3Encoder class."""
+
+    def test_encoder_writes_mp3_data(self, tmp_path: Path) -> None:
+        """Encoder writes MP3 data to file."""
+        output_path = tmp_path / "output.mp3"
+
+        # Create a mock encoder
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = b"mp3_chunk"
+        mock_encoder.flush.return_value = b"_final"
+
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            encoder = StreamingMP3Encoder(
+                output_path=output_path,
+                sample_rate=48000,
+                channels=2,
+                bitrate=128,
+            )
+
+            # Write some PCM data
+            encoder.write(b"\x00" * 1024)
+            encoder.write(b"\x00" * 1024)
+            encoder.close()
+
+            # Verify encoder was configured correctly
+            mock_encoder.set_bit_rate.assert_called_once_with(128)
+            mock_encoder.set_in_sample_rate.assert_called_once_with(48000)
+            mock_encoder.set_channels.assert_called_once_with(2)
+            mock_encoder.set_quality.assert_called_once_with(2)
+
+            # Verify file was created with expected content
+            assert output_path.exists()
+            content = output_path.read_bytes()
+            assert b"mp3_chunk" in content
+            assert b"_final" in content
+
+    def test_encoder_context_manager(self, tmp_path: Path) -> None:
+        """Encoder works as context manager and auto-closes."""
+        output_path = tmp_path / "output.mp3"
+
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = b"data"
+        mock_encoder.flush.return_value = b"end"
+
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            with StreamingMP3Encoder(
+                output_path=output_path,
+                sample_rate=44100,
+                channels=1,
+            ) as encoder:
+                encoder.write(b"\x00" * 512)
+
+            # File should be closed and contain data
+            assert output_path.exists()
+            content = output_path.read_bytes()
+            assert content == b"dataend"
+
+    def test_encoder_raises_error_after_close(self, tmp_path: Path) -> None:
+        """Encoder raises error when writing after close."""
+        import pytest
+
+        output_path = tmp_path / "output.mp3"
+
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = b"data"
+        mock_encoder.flush.return_value = b""
+
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            encoder = StreamingMP3Encoder(
+                output_path=output_path,
+                sample_rate=48000,
+                channels=2,
+            )
+            encoder.close()
+
+            with pytest.raises(RuntimeError, match="already closed"):
+                encoder.write(b"\x00" * 100)
+
+    def test_encoder_close_is_idempotent(self, tmp_path: Path) -> None:
+        """Calling close multiple times is safe."""
+        output_path = tmp_path / "output.mp3"
+
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = b""
+        mock_encoder.flush.return_value = b"final"
+
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            encoder = StreamingMP3Encoder(
+                output_path=output_path,
+                sample_rate=48000,
+                channels=2,
+            )
+            encoder.close()
+            encoder.close()  # Should not raise
+
+            # flush should only be called once
+            mock_encoder.flush.assert_called_once()
+
+    def test_encoder_custom_quality(self, tmp_path: Path) -> None:
+        """Encoder respects custom quality setting."""
+        output_path = tmp_path / "output.mp3"
+
+        mock_encoder = MagicMock()
+        mock_encoder.encode.return_value = b""
+        mock_encoder.flush.return_value = b""
+
+        mock_lameenc = MagicMock()
+        mock_lameenc.Encoder.return_value = mock_encoder
+
+        with patch.dict("sys.modules", {"lameenc": mock_lameenc}):
+            encoder = StreamingMP3Encoder(
+                output_path=output_path,
+                sample_rate=48000,
+                channels=2,
+                bitrate=320,
+                quality=0,  # Best quality
+            )
+            encoder.close()
+
+            mock_encoder.set_bit_rate.assert_called_once_with(320)
+            mock_encoder.set_quality.assert_called_once_with(0)

@@ -108,7 +108,11 @@ def start(
         float, typer.Option("--loopback-gain", help="System audio gain multiplier (default: 1.0)")
     ] = 1.0,
     mix_ratio: Annotated[
-        float, typer.Option("--mix-ratio", help="Mic/system audio mix ratio (0.0-1.0). Only applies with --mix mode. Higher = more mic.")
+        float,
+        typer.Option(
+            "--mix-ratio",
+            help="Mic/system audio mix ratio (0.0-1.0). Higher = more mic."
+        )
     ] = 0.5,
     output_format: Annotated[
         AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
@@ -119,8 +123,15 @@ def start(
     keep_wav: Annotated[
         bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion")
     ] = False,
+    direct_mp3: Annotated[
+        bool, typer.Option("--direct-mp3", help="直接MP3出力（長時間録音向け、メモリ効率が良い）")
+    ] = False,
 ) -> None:
     """Start recording audio."""
+    # --direct-mp3 implies --format mp3
+    if direct_mp3:
+        output_format = AudioFormat.MP3
+
     # Check lameenc availability for MP3 format
     if output_format == AudioFormat.MP3 and not is_mp3_available():
         console.print("[red]Error:[/red] lameenc is required for MP3 output.")
@@ -176,12 +187,19 @@ def start(
             )
             console.print()
 
-    # Parse output path - ensure WAV extension for recording when MP3 output requested
+    # Parse output path - ensure correct extension based on format and mode
     output_path = Path(output) if output else None
     desired_mp3_path: Path | None = None
-    if output_format == AudioFormat.MP3 and output_path and output_path.suffix.lower() == ".mp3":
-        desired_mp3_path = output_path
-        output_path = output_path.with_suffix(".wav")
+    if output_format == AudioFormat.MP3:
+        if direct_mp3:
+            # Direct MP3: output path should be .mp3
+            if output_path and output_path.suffix.lower() != ".mp3":
+                output_path = output_path.with_suffix(".mp3")
+        else:
+            # Post-conversion mode: record to WAV first
+            if output_path and output_path.suffix.lower() == ".mp3":
+                desired_mp3_path = output_path
+                output_path = output_path.with_suffix(".wav")
 
     audio_capture: AudioCapture | None = None
     session: RecordingSession | None = None
@@ -201,6 +219,8 @@ def start(
             mic_gain=mic_gain,
             loopback_gain=loopback_gain,
             mix_ratio=mix_ratio,
+            direct_mp3=direct_mp3,
+            mp3_bitrate=bitrate,
         )
 
         # Show device info
@@ -245,9 +265,9 @@ def start(
         console.print(f"[cyan]Duration:[/cyan] {_format_duration(elapsed)}")
         console.print(f"[cyan]Size:[/cyan] {_format_size(state.bytes_recorded)}")
 
-        # Convert to MP3 if requested
+        # Convert to MP3 if requested (skip if direct_mp3 was used)
         final_output: Path | str | None = state.output_file
-        if output_format == AudioFormat.MP3 and state.output_file:
+        if output_format == AudioFormat.MP3 and state.output_file and not direct_mp3:
             wav_path = state.output_file
             mp3_path = desired_mp3_path or wav_path.with_suffix(".mp3")
             console.print("[yellow]Converting to MP3...[/yellow]")

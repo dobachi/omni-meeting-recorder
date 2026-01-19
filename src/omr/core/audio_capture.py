@@ -35,6 +35,8 @@ class RecordingSession:
     mic_gain: float = 1.0  # Microphone gain multiplier
     loopback_gain: float = 1.0  # System audio gain multiplier
     mix_ratio: float = 0.5  # Mic/system mix ratio (0.0-1.0, higher = more mic)
+    direct_mp3: bool = False  # Enable direct MP3 output (for long recordings)
+    mp3_bitrate: int = 128  # MP3 bitrate in kbps
     state: RecordingState = field(default_factory=RecordingState)
     _stop_event: threading.Event = field(default_factory=threading.Event)
     _recording_thread: threading.Thread | None = None
@@ -96,6 +98,8 @@ class AudioCapture(AudioCaptureBase):
         mic_gain: float = 1.0,
         loopback_gain: float = 1.0,
         mix_ratio: float = 0.5,
+        direct_mp3: bool = False,
+        mp3_bitrate: int = 128,
     ) -> RecordingSession:
         """Create a new recording session.
 
@@ -109,11 +113,14 @@ class AudioCapture(AudioCaptureBase):
             mic_gain: Microphone gain multiplier.
             loopback_gain: System audio gain multiplier.
             mix_ratio: Mic/system mix ratio (0.0-1.0, higher = more mic).
+            direct_mp3: Enable direct MP3 output (for long recordings).
+            mp3_bitrate: MP3 bitrate in kbps (default: 128).
         """
         # Generate output filename if not provided
         if output_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"recording_{timestamp}.wav"
+            ext = ".mp3" if direct_mp3 else ".wav"
+            filename = f"recording_{timestamp}{ext}"
             output_path = self._settings.output.output_dir / filename
 
         # Get devices based on mode
@@ -150,6 +157,8 @@ class AudioCapture(AudioCaptureBase):
             mic_gain=mic_gain,
             loopback_gain=loopback_gain,
             mix_ratio=mix_ratio,
+            direct_mp3=direct_mp3,
+            mp3_bitrate=mp3_bitrate,
         )
 
     def start_recording(self, session: RecordingSession) -> None:
@@ -167,13 +176,44 @@ class AudioCapture(AudioCaptureBase):
             session.state.bytes_recorded += len(data)
 
         def record_worker() -> None:
+            from omr.core.encoder import StreamingMP3Encoder
+
             try:
+                # Create MP3 encoder if direct_mp3 is enabled
+                writer = None
+                if session.direct_mp3:
+                    # Determine sample rate and channels based on mode
+                    if session.mode == RecordingMode.BOTH:
+                        # BOTH mode outputs stereo (2 channels) at loopback's sample rate
+                        if session.loopback_device:
+                            sample_rate = int(session.loopback_device.default_sample_rate)
+                        else:
+                            sample_rate = 48000
+                        channels = 2
+                    elif session.mode == RecordingMode.LOOPBACK and session.loopback_device:
+                        sample_rate = int(session.loopback_device.default_sample_rate)
+                        channels = session.loopback_device.channels or 2
+                    elif session.mode == RecordingMode.MIC and session.mic_device:
+                        sample_rate = int(session.mic_device.default_sample_rate)
+                        channels = session.mic_device.channels or 1
+                    else:
+                        sample_rate = 48000
+                        channels = 2
+
+                    writer = StreamingMP3Encoder(
+                        output_path=session.output_path,
+                        sample_rate=sample_rate,
+                        channels=channels,
+                        bitrate=session.mp3_bitrate,
+                    )
+
                 if session.mode == RecordingMode.LOOPBACK and session.loopback_device:
                     self._backend.record_to_file(
                         device=session.loopback_device,
                         output_path=session.output_path,
                         stop_event=session.stop_event,
                         on_chunk=on_chunk,
+                        writer=writer,
                     )
                 elif session.mode == RecordingMode.MIC and session.mic_device:
                     self._backend.record_to_file(
@@ -181,6 +221,7 @@ class AudioCapture(AudioCaptureBase):
                         output_path=session.output_path,
                         stop_event=session.stop_event,
                         on_chunk=on_chunk,
+                        writer=writer,
                     )
                 elif session.mode == RecordingMode.BOTH:
                     if session.mic_device and session.loopback_device:
@@ -195,6 +236,7 @@ class AudioCapture(AudioCaptureBase):
                             loopback_gain=session.loopback_gain,
                             mix_ratio=session.mix_ratio,
                             on_chunk=on_chunk,
+                            writer=writer,
                         )
                     else:
                         raise RuntimeError(
