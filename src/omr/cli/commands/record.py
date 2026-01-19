@@ -102,8 +102,8 @@ def start(
         help="Enable acoustic echo cancellation (requires pyaec)",
     ),
     mic_gain: Annotated[
-        float, typer.Option("--mic-gain", help="Microphone gain multiplier (default: 1.0)")
-    ] = 1.0,
+        float, typer.Option("--mic-gain", help="Microphone gain multiplier (default: 1.5)")
+    ] = 1.5,
     loopback_gain: Annotated[
         float, typer.Option("--loopback-gain", help="System audio gain multiplier (default: 1.0)")
     ] = 1.0,

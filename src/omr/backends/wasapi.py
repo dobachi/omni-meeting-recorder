@@ -239,7 +239,7 @@ class WasapiBackend:
         stop_event: threading.Event,
         stereo_split: bool = True,
         aec_enabled: bool = False,
-        mic_gain: float = 1.0,
+        mic_gain: float = 1.5,
         loopback_gain: float = 1.0,
         mix_ratio: float = 0.5,
         on_chunk: Callable[[bytes], None] | None = None,

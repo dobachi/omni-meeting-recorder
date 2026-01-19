@@ -32,7 +32,7 @@ class RecordingSession:
     loopback_device: AudioDevice | None = None
     stereo_split: bool = True  # For BOTH mode: True=left:mic/right:system
     aec_enabled: bool = False  # For BOTH mode: Enable acoustic echo cancellation
-    mic_gain: float = 1.0  # Microphone gain multiplier
+    mic_gain: float = 1.5  # Microphone gain multiplier
     loopback_gain: float = 1.0  # System audio gain multiplier
     mix_ratio: float = 0.5  # Mic/system mix ratio (0.0-1.0, higher = more mic)
     direct_mp3: bool = False  # Enable direct MP3 output (for long recordings)
@@ -95,7 +95,7 @@ class AudioCapture(AudioCaptureBase):
         loopback_device_index: int | None = None,
         stereo_split: bool = True,
         aec_enabled: bool = False,
-        mic_gain: float = 1.0,
+        mic_gain: float = 1.5,
         loopback_gain: float = 1.0,
         mix_ratio: float = 0.5,
         direct_mp3: bool = False,
