@@ -1,9 +1,12 @@
 """Tests for CLI commands."""
 
+import inspect
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
+from omr.cli import main as main_module
+from omr.cli.commands import record as record_module
 from omr.cli.main import app
 from omr.core.device_manager import AudioDevice, DeviceType
 
@@ -149,3 +152,29 @@ class TestRecordCommand:
         result = runner.invoke(app, ["record", "stop"])
         assert result.exit_code == 0
         assert "Ctrl+C" in result.stdout
+
+
+class TestCommandSignatureSync:
+    """Tests to ensure main.py and record.py command signatures are in sync."""
+
+    def test_main_start_has_all_record_start_params(self):
+        """Ensure main.start_recording passes all parameters that record.start accepts."""
+        # Get parameters of record.start (excluding 'loopback' and 'mic' which are legacy)
+        record_start_sig = inspect.signature(record_module.start)
+        record_params = set(record_start_sig.parameters.keys())
+
+        # Get parameters of main.start_recording
+        main_start_sig = inspect.signature(main_module.start_recording)
+        main_params = set(main_start_sig.parameters.keys())
+
+        # Legacy params that main doesn't expose (they're always False)
+        legacy_params = {"loopback", "mic"}
+
+        # Check that main has all non-legacy params from record
+        expected_in_main = record_params - legacy_params
+        missing_in_main = expected_in_main - main_params
+
+        assert not missing_in_main, (
+            f"main.start_recording is missing parameters: {missing_in_main}. "
+            f"These exist in record.start but not in main.start_recording."
+        )
