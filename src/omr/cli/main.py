@@ -74,6 +74,9 @@ def start_recording(
     loopback_gain: Annotated[
         float, typer.Option("--loopback-gain", help="System audio gain multiplier (default: 1.0)")
     ] = 1.0,
+    mix_ratio: Annotated[
+        float, typer.Option("--mix-ratio", help="Mic/system audio mix ratio (0.0-1.0). Only applies with --mix mode. Higher = more mic.")
+    ] = 0.5,
     output_format: Annotated[
         AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
     ] = AudioFormat.MP3,
@@ -97,6 +100,7 @@ def start_recording(
         aec=aec,
         mic_gain=mic_gain,
         loopback_gain=loopback_gain,
+        mix_ratio=mix_ratio,
         output_format=output_format,
         bitrate=bitrate,
         keep_wav=keep_wav,

@@ -204,6 +204,7 @@ class WasapiBackend:
         aec_enabled: bool = False,
         mic_gain: float = 1.0,
         loopback_gain: float = 1.0,
+        mix_ratio: float = 0.5,
         on_chunk: Callable[[bytes], None] | None = None,
     ) -> None:
         """Record audio from both mic and loopback devices to a single WAV file.
@@ -219,6 +220,7 @@ class WasapiBackend:
             aec_enabled: If True, apply acoustic echo cancellation to mic signal.
             mic_gain: Microphone gain multiplier (applied after AGC).
             loopback_gain: System audio gain multiplier (applied after AGC).
+            mix_ratio: Mic/system mix ratio (0.0-1.0). Higher = more mic.
             on_chunk: Callback for each output chunk
         """
         import struct
@@ -329,7 +331,7 @@ class WasapiBackend:
         loopback_rms_history: list[float] = []
         agc_window = 50  # Number of chunks to average for stable gain
         loopback_target_rms = 8000.0  # Target RMS level (~25% of 16-bit peak)
-        mic_target_rms = 12000.0  # Higher target for mic (~37% of 16-bit peak)
+        mic_target_rms = 16000.0  # Higher target for mic (~49% of 16-bit peak)
 
         def mic_reader_thread() -> None:
             """Thread to read from microphone."""
@@ -419,7 +421,7 @@ class WasapiBackend:
                         loopback_rms = calc_rms(loopback_chunk)
 
                         # Track RMS history for stable gain calculation
-                        if mic_rms > 100:  # Only track when there's actual signal
+                        if mic_rms > 50:  # Lower threshold for quiet mics
                             mic_rms_history.append(mic_rms)
                             if len(mic_rms_history) > agc_window:
                                 mic_rms_history.pop(0)
@@ -433,7 +435,7 @@ class WasapiBackend:
                             avg_mic_rms = sum(mic_rms_history) / len(mic_rms_history)
                             if avg_mic_rms > 50:
                                 auto_mic_gain = mic_target_rms / avg_mic_rms
-                                auto_mic_gain = max(0.5, min(8.0, auto_mic_gain))
+                                auto_mic_gain = max(0.5, min(12.0, auto_mic_gain))
                                 # Apply user gain multiplier
                                 total_mic_gain = auto_mic_gain * mic_gain
                                 mic_chunk = apply_gain(mic_chunk, total_mic_gain)
@@ -457,7 +459,7 @@ class WasapiBackend:
                             if stereo_split:
                                 output_samples.extend([mic_val, loop_val])
                             else:
-                                mixed = (mic_val + loop_val) // 2
+                                mixed = int(mic_val * mix_ratio + loop_val * (1.0 - mix_ratio))
                                 output_samples.extend([mixed, mixed])
 
                         clamped = [max(-32768, min(32767, s)) for s in output_samples]

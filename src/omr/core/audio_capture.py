@@ -34,6 +34,7 @@ class RecordingSession:
     aec_enabled: bool = False  # For BOTH mode: Enable acoustic echo cancellation
     mic_gain: float = 1.0  # Microphone gain multiplier
     loopback_gain: float = 1.0  # System audio gain multiplier
+    mix_ratio: float = 0.5  # Mic/system mix ratio (0.0-1.0, higher = more mic)
     state: RecordingState = field(default_factory=RecordingState)
     _stop_event: threading.Event = field(default_factory=threading.Event)
     _recording_thread: threading.Thread | None = None
@@ -94,6 +95,7 @@ class AudioCapture(AudioCaptureBase):
         aec_enabled: bool = False,
         mic_gain: float = 1.0,
         loopback_gain: float = 1.0,
+        mix_ratio: float = 0.5,
     ) -> RecordingSession:
         """Create a new recording session.
 
@@ -106,6 +108,7 @@ class AudioCapture(AudioCaptureBase):
             aec_enabled: For BOTH mode - Enable acoustic echo cancellation.
             mic_gain: Microphone gain multiplier.
             loopback_gain: System audio gain multiplier.
+            mix_ratio: Mic/system mix ratio (0.0-1.0, higher = more mic).
         """
         # Generate output filename if not provided
         if output_path is None:
@@ -146,6 +149,7 @@ class AudioCapture(AudioCaptureBase):
             aec_enabled=aec_enabled,
             mic_gain=mic_gain,
             loopback_gain=loopback_gain,
+            mix_ratio=mix_ratio,
         )
 
     def start_recording(self, session: RecordingSession) -> None:
@@ -189,6 +193,7 @@ class AudioCapture(AudioCaptureBase):
                             aec_enabled=session.aec_enabled,
                             mic_gain=session.mic_gain,
                             loopback_gain=session.loopback_gain,
+                            mix_ratio=session.mix_ratio,
                             on_chunk=on_chunk,
                         )
                     else:
