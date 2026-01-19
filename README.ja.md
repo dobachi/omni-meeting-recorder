@@ -251,6 +251,48 @@ PyAudioWPatchはWindowsのみ対応しています。Linux/macOSではテスト�
 pip install PyAudioWPatch
 ```
 
+### SSL証明書エラー（企業プロキシ / Zscaler環境）
+
+Zscalerなどの企業プロキシやセキュリティツールを使用している環境では、SSL証明書エラーが発生することがあります：
+- `certificate verify failed: unable to get local issuer certificate`
+- `SSL: CERTIFICATE_VERIFY_FAILED`
+
+**解決策1: ネイティブTLSを使用（推奨）**
+
+システムの証明書ストアを使用する環境変数を設定します：
+
+```powershell
+# PowerShell - 一時的（現在のセッションのみ）
+$env:UV_NATIVE_TLS = "true"
+
+# PowerShell - 永続的（ユーザー環境変数）
+[Environment]::SetEnvironmentVariable("UV_NATIVE_TLS", "true", "User")
+
+# その後、通常通りuv/uvxコマンドを実行
+uvx -p 3.13 --from git+https://github.com/dobachi/omni-meeting-recorder.git omr --help
+```
+
+**解決策2: 証明書ファイルを直接指定**
+
+IT部門から証明書バンドルが提供されている場合：
+
+```powershell
+$env:SSL_CERT_FILE = "C:\path\to\corporate-ca-bundle.pem"
+```
+
+**解決策3: --native-tlsフラグを使用**
+
+個別のコマンドにフラグを追加：
+
+```powershell
+uv --native-tls sync
+uv --native-tls run omr start
+```
+
+**参考:**
+- [uv TLS証明書ドキュメント](https://docs.astral.sh/uv/concepts/authentication/certificates/)
+- [Zscaler SSL証明書設定](https://help.zscaler.com/unified/adding-custom-certificate-application-specific-trust-store)
+
 ## エコーキャンセル（AEC）
 
 マイクとシステム音声を同時に録音し、**スピーカー**を使用している場合、マイクがスピーカーからの音声を拾います。これにより録音にエコーが発生します。

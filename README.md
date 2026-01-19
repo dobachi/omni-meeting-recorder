@@ -251,6 +251,48 @@ PyAudioWPatch only supports Windows. On Linux/macOS, only tests can be run.
 pip install PyAudioWPatch
 ```
 
+### SSL Certificate Errors (Corporate Proxy / Zscaler)
+
+If you're behind a corporate proxy or security tool like Zscaler, you may encounter SSL certificate errors such as:
+- `certificate verify failed: unable to get local issuer certificate`
+- `SSL: CERTIFICATE_VERIFY_FAILED`
+
+**Solution 1: Use Native TLS (Recommended)**
+
+Set the environment variable to use your system's certificate store:
+
+```powershell
+# PowerShell - temporary (current session only)
+$env:UV_NATIVE_TLS = "true"
+
+# PowerShell - permanent (user environment)
+[Environment]::SetEnvironmentVariable("UV_NATIVE_TLS", "true", "User")
+
+# Then run uv/uvx commands as usual
+uvx -p 3.13 --from git+https://github.com/dobachi/omni-meeting-recorder.git omr --help
+```
+
+**Solution 2: Specify Certificate File Directly**
+
+If your IT department provides a certificate bundle:
+
+```powershell
+$env:SSL_CERT_FILE = "C:\path\to\corporate-ca-bundle.pem"
+```
+
+**Solution 3: Use --native-tls Flag**
+
+Add the flag to individual commands:
+
+```powershell
+uv --native-tls sync
+uv --native-tls run omr start
+```
+
+**Reference:**
+- [uv TLS Certificates Documentation](https://docs.astral.sh/uv/concepts/authentication/certificates/)
+- [Zscaler SSL Certificate Configuration](https://help.zscaler.com/unified/adding-custom-certificate-application-specific-trust-store)
+
 ## Acoustic Echo Cancellation (AEC)
 
 When recording both mic and system audio while using **speakers**, the microphone picks up audio from the speakers. This causes echo in the recording.
