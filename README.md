@@ -217,11 +217,13 @@ omr start -b 192               # MP3 bitrate 192kbps (default: 128)
 | `-M`, `--mic-only` | Record microphone only |
 | `--aec/--no-aec` | Enable/disable echo cancellation (default: enabled) |
 | `--stereo-split/--mix` | Stereo split or mix mode (default: mix) |
-| `-f`, `--format` | Output format: wav, mp3 (default: mp3) |
+| `-f`, `--format` | Output format: wav, mp3 (default: mp3, direct streaming) |
 | `-b`, `--bitrate` | MP3 bitrate in kbps (default: 128) |
+| `--post-convert` | Record to WAV first, then convert to MP3 (legacy mode) |
+| `--keep-wav` | Keep WAV file after MP3 conversion (only with --post-convert) |
 | `--mic-device` | Microphone device index |
 | `--loopback-device` | Loopback device index |
-| `--mic-gain` | Microphone gain multiplier (default: 1.0) |
+| `--mic-gain` | Microphone gain multiplier (default: 1.5) |
 | `--loopback-gain` | System audio gain multiplier (default: 1.0) |
 
 ## Troubleshooting

@@ -21,7 +21,7 @@ class TestMainCLI:
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "Omni Meeting Recorder" in result.stdout
-        assert "0.1.0" in result.stdout
+        assert "0.4.1" in result.stdout
 
     def test_help(self):
         """Test --help flag shows help."""
@@ -152,6 +152,51 @@ class TestRecordCommand:
         result = runner.invoke(app, ["record", "stop"])
         assert result.exit_code == 0
         assert "Ctrl+C" in result.stdout
+
+
+class TestPostConvertOption:
+    """Tests for --post-convert option."""
+
+    @patch("omr.cli.commands.record.is_mp3_available")
+    @patch("omr.cli.commands.record.AudioCapture")
+    def test_post_convert_option_exists(self, mock_capture_class, mock_mp3_available):
+        """Test --post-convert option is recognized."""
+        mock_mp3_available.return_value = True
+        mock_capture = MagicMock()
+        mock_capture.create_session.side_effect = RuntimeError("No loopback device found")
+        mock_capture_class.return_value = mock_capture
+
+        # Should recognize the --post-convert option
+        result = runner.invoke(app, ["start", "--post-convert", "--format", "mp3"])
+        # Error is expected (no device), but option should be recognized
+        assert result.exit_code == 1
+        assert "No loopback device found" in result.stdout
+
+    @patch("omr.cli.commands.record.is_mp3_available")
+    @patch("omr.cli.commands.record.AudioCapture")
+    def test_direct_mp3_deprecation_warning(self, mock_capture_class, mock_mp3_available):
+        """Test --direct-mp3 shows deprecation warning."""
+        mock_mp3_available.return_value = True
+        mock_capture = MagicMock()
+        mock_capture.create_session.side_effect = RuntimeError("No loopback device found")
+        mock_capture_class.return_value = mock_capture
+
+        result = runner.invoke(app, ["start", "--direct-mp3"])
+        # Should show deprecation warning
+        assert "deprecated" in result.stdout.lower() or "非推奨" in result.stdout
+
+    @patch("omr.cli.commands.record.is_mp3_available")
+    @patch("omr.cli.commands.record.AudioCapture")
+    def test_keep_wav_without_post_convert_warning(self, mock_capture_class, mock_mp3_available):
+        """Test --keep-wav without --post-convert shows warning."""
+        mock_mp3_available.return_value = True
+        mock_capture = MagicMock()
+        mock_capture.create_session.side_effect = RuntimeError("No loopback device found")
+        mock_capture_class.return_value = mock_capture
+
+        result = runner.invoke(app, ["start", "--keep-wav"])
+        # Should show warning about --keep-wav without --post-convert
+        assert "keep-wav" in result.stdout.lower() and "post-convert" in result.stdout.lower()
 
 
 class TestCommandSignatureSync:

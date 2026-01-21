@@ -121,16 +121,36 @@ def start(
         int, typer.Option("--bitrate", "-b", help="MP3 bitrate in kbps")
     ] = 128,
     keep_wav: Annotated[
-        bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion")
+        bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion (only with --post-convert)")
     ] = False,
+    post_convert: Annotated[
+        bool, typer.Option("--post-convert", help="WAV録音後にMP3変換（旧動作）")
+    ] = False,
+    # Deprecated option - kept for backward compatibility
     direct_mp3: Annotated[
-        bool, typer.Option("--direct-mp3", help="直接MP3出力（長時間録音向け、メモリ効率が良い）")
+        bool, typer.Option("--direct-mp3", help="[非推奨] 直接MP3出力（現在はデフォルト動作）", hidden=True)
     ] = False,
 ) -> None:
     """Start recording audio."""
-    # --direct-mp3 implies --format mp3
+    # Show deprecation warning for --direct-mp3
     if direct_mp3:
-        output_format = AudioFormat.MP3
+        console.print(
+            "[yellow]Warning:[/yellow] --direct-mp3 is deprecated. "
+            "Direct MP3 output is now the default behavior."
+        )
+        console.print()
+
+    # Determine if we should use streaming MP3 (direct output)
+    # Default: streaming MP3 for --format mp3
+    # --post-convert: record to WAV first, then convert
+    use_streaming_mp3 = output_format == AudioFormat.MP3 and not post_convert
+
+    # Warn if --keep-wav used without --post-convert
+    if keep_wav and not post_convert:
+        console.print(
+            "[yellow]Warning:[/yellow] --keep-wav has no effect without --post-convert."
+        )
+        console.print()
 
     # Check lameenc availability for MP3 format
     if output_format == AudioFormat.MP3 and not is_mp3_available():
@@ -191,8 +211,8 @@ def start(
     output_path = Path(output) if output else None
     desired_mp3_path: Path | None = None
     if output_format == AudioFormat.MP3:
-        if direct_mp3:
-            # Direct MP3: output path should be .mp3
+        if use_streaming_mp3:
+            # Streaming MP3: output path should be .mp3
             if output_path and output_path.suffix.lower() != ".mp3":
                 output_path = output_path.with_suffix(".mp3")
         else:
@@ -219,7 +239,7 @@ def start(
             mic_gain=mic_gain,
             loopback_gain=loopback_gain,
             mix_ratio=mix_ratio,
-            direct_mp3=direct_mp3,
+            direct_mp3=use_streaming_mp3,
             mp3_bitrate=bitrate,
         )
 
@@ -265,9 +285,9 @@ def start(
         console.print(f"[cyan]Duration:[/cyan] {_format_duration(elapsed)}")
         console.print(f"[cyan]Size:[/cyan] {_format_size(state.bytes_recorded)}")
 
-        # Convert to MP3 if requested (skip if direct_mp3 was used)
+        # Convert to MP3 if post-convert mode was used
         final_output: Path | str | None = state.output_file
-        if output_format == AudioFormat.MP3 and state.output_file and not direct_mp3:
+        if output_format == AudioFormat.MP3 and state.output_file and not use_streaming_mp3:
             wav_path = state.output_file
             mp3_path = desired_mp3_path or wav_path.with_suffix(".mp3")
             console.print("[yellow]Converting to MP3...[/yellow]")

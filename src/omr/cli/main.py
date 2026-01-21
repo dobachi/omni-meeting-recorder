@@ -88,10 +88,14 @@ def start_recording(
         int, typer.Option("--bitrate", "-b", help="MP3 bitrate in kbps")
     ] = 128,
     keep_wav: Annotated[
-        bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion")
+        bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion (only with --post-convert)")
     ] = False,
+    post_convert: Annotated[
+        bool, typer.Option("--post-convert", help="WAV録音後にMP3変換（旧動作）")
+    ] = False,
+    # Deprecated option - kept for backward compatibility
     direct_mp3: Annotated[
-        bool, typer.Option("--direct-mp3", help="直接MP3出力（長時間録音向け、メモリ効率が良い）")
+        bool, typer.Option("--direct-mp3", help="[非推奨] 直接MP3出力（現在はデフォルト動作）", hidden=True)
     ] = False,
 ) -> None:
     """Start recording audio (mic + system by default). Shortcut for 'omr record start'."""
@@ -111,6 +115,7 @@ def start_recording(
         output_format=output_format,
         bitrate=bitrate,
         keep_wav=keep_wav,
+        post_convert=post_convert,
         direct_mp3=direct_mp3,
     )
 

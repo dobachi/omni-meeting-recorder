@@ -35,7 +35,7 @@ class RecordingSession:
     mic_gain: float = 1.5  # Microphone gain multiplier
     loopback_gain: float = 1.0  # System audio gain multiplier
     mix_ratio: float = 0.5  # Mic/system mix ratio (0.0-1.0, higher = more mic)
-    direct_mp3: bool = False  # Enable direct MP3 output (for long recordings)
+    direct_mp3: bool = True  # Enable direct MP3 output (default for MP3 format)
     mp3_bitrate: int = 128  # MP3 bitrate in kbps
     state: RecordingState = field(default_factory=RecordingState)
     _stop_event: threading.Event = field(default_factory=threading.Event)
@@ -98,7 +98,7 @@ class AudioCapture(AudioCaptureBase):
         mic_gain: float = 1.5,
         loopback_gain: float = 1.0,
         mix_ratio: float = 0.5,
-        direct_mp3: bool = False,
+        direct_mp3: bool = True,
         mp3_bitrate: int = 128,
     ) -> RecordingSession:
         """Create a new recording session.
@@ -113,7 +113,7 @@ class AudioCapture(AudioCaptureBase):
             mic_gain: Microphone gain multiplier.
             loopback_gain: System audio gain multiplier.
             mix_ratio: Mic/system mix ratio (0.0-1.0, higher = more mic).
-            direct_mp3: Enable direct MP3 output (for long recordings).
+            direct_mp3: Enable direct MP3 output (default: True for MP3 format).
             mp3_bitrate: MP3 bitrate in kbps (default: 128).
         """
         # Generate output filename if not provided

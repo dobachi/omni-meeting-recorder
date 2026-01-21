@@ -217,11 +217,13 @@ omr start -b 192               # MP3ビットレート 192kbps（デフォルト
 | `-M`, `--mic-only` | マイクのみ録音 |
 | `--aec/--no-aec` | エコーキャンセルの有効/無効（デフォルト: 有効） |
 | `--stereo-split/--mix` | ステレオ分離またはミックス（デフォルト: ミックス） |
-| `-f`, `--format` | 出力形式: wav, mp3（デフォルト: mp3） |
+| `-f`, `--format` | 出力形式: wav, mp3（デフォルト: mp3、ストリーミング出力） |
 | `-b`, `--bitrate` | MP3ビットレート（kbps、デフォルト: 128） |
+| `--post-convert` | WAV録音後にMP3変換（旧動作モード） |
+| `--keep-wav` | MP3変換後もWAVファイルを保持（--post-convert時のみ有効） |
 | `--mic-device` | マイクデバイスのインデックス |
 | `--loopback-device` | Loopbackデバイスのインデックス |
-| `--mic-gain` | マイクゲイン倍率（デフォルト: 1.0） |
+| `--mic-gain` | マイクゲイン倍率（デフォルト: 1.5） |
 | `--loopback-gain` | システム音声ゲイン倍率（デフォルト: 1.0） |
 
 ## トラブルシューティング
