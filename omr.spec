@@ -13,18 +13,40 @@ Output:
 """
 
 import sys
+import os
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_all
 
 # Project root directory
 project_root = Path(SPECPATH)
 src_dir = project_root / "src"
 
+# Find pyaec package directory and collect its DLL
+def find_pyaec_dll():
+    """Find pyaec DLL and return as binaries list."""
+    try:
+        import pyaec
+        pyaec_dir = Path(pyaec.__file__).parent
+        dll_path = pyaec_dir / "aec.dll"
+        if dll_path.exists():
+            # (dest_path, src_path, typecode)
+            return [(str(Path("pyaec") / "aec.dll"), str(dll_path), "BINARY")]
+        # Also check for .pyd files
+        for f in pyaec_dir.glob("*.pyd"):
+            return [(str(Path("pyaec") / f.name), str(f), "BINARY")]
+        for f in pyaec_dir.glob("*.dll"):
+            return [(str(Path("pyaec") / f.name), str(f), "BINARY")]
+    except Exception as e:
+        print(f"Warning: Could not find pyaec DLL: {e}")
+    return []
+
+pyaec_binaries = find_pyaec_dll()
+
 # Analysis configuration
 a = Analysis(
     [str(src_dir / "omr" / "cli" / "main.py")],
     pathex=[str(src_dir)],
-    binaries=[],
+    binaries=pyaec_binaries,  # Include pyaec DLL
     datas=[],
     hiddenimports=[
         # Core dependencies
