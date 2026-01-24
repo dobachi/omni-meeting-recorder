@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows Portable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Install dependencies
+        run: uv sync --extra dev --group build
+
+      - name: Verify version matches tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}" -replace '^v', ''
+          $version = (Select-String -Path "src/omr/__init__.py" -Pattern '__version__\s*=\s*"([^"]+)"').Matches.Groups[1].Value
+          if ($tag -ne $version) {
+            Write-Error "Tag version ($tag) does not match package version ($version)"
+            exit 1
+          }
+          Write-Host "Version verified: $version"
+
+      - name: Build portable package
+        run: uv run task build-portable --clean
+
+      - name: Verify build artifacts
+        shell: pwsh
+        run: |
+          $zipFile = Get-ChildItem -Path "dist" -Filter "omr-*-windows-x64.zip" | Select-Object -First 1
+          if (-not $zipFile) {
+            Write-Error "ZIP file not found in dist/"
+            exit 1
+          }
+          Write-Host "Build artifact: $($zipFile.Name)"
+          Write-Host "Size: $([math]::Round($zipFile.Length / 1MB, 2)) MB"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/omr-*-windows-x64.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
