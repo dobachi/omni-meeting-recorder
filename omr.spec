@@ -15,7 +15,7 @@ Output:
 import sys
 import os
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_all
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_all, collect_submodules
 
 # Project root directory
 project_root = Path(SPECPATH)
@@ -47,7 +47,7 @@ a = Analysis(
     [str(src_dir / "omr" / "cli" / "main.py")],
     pathex=[str(src_dir)],
     binaries=[],
-    datas=[],
+    datas=collect_data_files("rich"),
     hiddenimports=[
         # Core dependencies
         "typer",
@@ -62,6 +62,11 @@ a = Analysis(
         "rich.panel",
         "rich.text",
         "rich.live",
+        "rich.cells",
+        "rich._wrap",
+        "rich._unicode_data",
+        # Rich unicode data modules (dynamically loaded)
+        *collect_submodules("rich._unicode_data"),
         "pydantic",
         "pydantic.fields",
         "pydantic_core",
