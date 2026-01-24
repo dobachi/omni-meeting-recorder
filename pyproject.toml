@@ -80,3 +80,6 @@ build-portable = "python scripts/build-portable.py"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+
+[dependency-groups]
+build = ["pyinstaller>=6.0"]
