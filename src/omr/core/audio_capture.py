@@ -1,6 +1,7 @@
 """Audio capture abstraction layer."""
 
 import contextlib
+import logging
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -10,6 +11,8 @@ from pathlib import Path
 from omr.backends.wasapi import WasapiBackend
 from omr.config.settings import RecordingMode, Settings
 from omr.core.device_manager import AudioDevice, DeviceManager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,6 +44,11 @@ class RecordingSession:
     state: RecordingState = field(default_factory=RecordingState)
     _stop_event: threading.Event = field(default_factory=threading.Event)
     _recording_thread: threading.Thread | None = None
+    # Device switching support
+    _device_switch_event: threading.Event = field(default_factory=threading.Event)
+    _pending_mic_device: AudioDevice | None = field(default=None)
+    _pending_loopback_device: AudioDevice | None = field(default=None)
+    _device_switch_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def request_stop(self) -> None:
         """Request the recording to stop."""
@@ -50,6 +58,58 @@ class RecordingSession:
     def stop_event(self) -> threading.Event:
         """Get the stop event."""
         return self._stop_event
+
+    @property
+    def device_switch_event(self) -> threading.Event:
+        """Get the device switch event."""
+        return self._device_switch_event
+
+    def request_device_switch(
+        self,
+        mic_device: AudioDevice | None = None,
+        loopback_device: AudioDevice | None = None,
+    ) -> None:
+        """Request a device switch during recording.
+
+        Args:
+            mic_device: New microphone device (None to keep current).
+            loopback_device: New loopback device (None to keep current).
+        """
+        with self._device_switch_lock:
+            self._pending_mic_device = mic_device
+            self._pending_loopback_device = loopback_device
+            self._device_switch_event.set()
+
+    def get_pending_switch(self) -> tuple[AudioDevice | None, AudioDevice | None]:
+        """Get and clear the pending device switch request.
+
+        Returns:
+            Tuple of (mic_device, loopback_device) that were requested.
+            Either may be None if not changing.
+        """
+        with self._device_switch_lock:
+            mic = self._pending_mic_device
+            loopback = self._pending_loopback_device
+            self._pending_mic_device = None
+            self._pending_loopback_device = None
+            self._device_switch_event.clear()
+            return mic, loopback
+
+    def update_devices(
+        self,
+        mic_device: AudioDevice | None = None,
+        loopback_device: AudioDevice | None = None,
+    ) -> None:
+        """Update the current devices after a successful switch.
+
+        Args:
+            mic_device: New microphone device (None to keep current).
+            loopback_device: New loopback device (None to keep current).
+        """
+        if mic_device is not None:
+            self.mic_device = mic_device
+        if loopback_device is not None:
+            self.loopback_device = loopback_device
 
 
 class AudioCaptureBase(ABC):
@@ -208,6 +268,18 @@ class AudioCapture(AudioCaptureBase):
                         bitrate=session.mp3_bitrate,
                     )
 
+                def on_single_device_switch() -> AudioDevice | None:
+                    """Callback for single device switching."""
+                    mic, loopback = session.get_pending_switch()
+                    new_device = None
+                    if session.mode == RecordingMode.LOOPBACK and loopback:
+                        new_device = loopback
+                        session.update_devices(loopback_device=loopback)
+                    elif session.mode == RecordingMode.MIC and mic:
+                        new_device = mic
+                        session.update_devices(mic_device=mic)
+                    return new_device
+
                 if session.mode == RecordingMode.LOOPBACK and session.loopback_device:
                     self._backend.record_to_file(
                         device=session.loopback_device,
@@ -215,6 +287,8 @@ class AudioCapture(AudioCaptureBase):
                         stop_event=session.stop_event,
                         on_chunk=on_chunk,
                         writer=writer,
+                        device_switch_event=session.device_switch_event,
+                        on_device_switch=on_single_device_switch,
                     )
                 elif session.mode == RecordingMode.MIC and session.mic_device:
                     self._backend.record_to_file(
@@ -223,9 +297,21 @@ class AudioCapture(AudioCaptureBase):
                         stop_event=session.stop_event,
                         on_chunk=on_chunk,
                         writer=writer,
+                        device_switch_event=session.device_switch_event,
+                        on_device_switch=on_single_device_switch,
                     )
                 elif session.mode == RecordingMode.BOTH:
                     if session.mic_device and session.loopback_device:
+
+                        def on_dual_device_switch() -> tuple[AudioDevice | None, AudioDevice | None]:
+                            """Callback for dual device switching."""
+                            mic, loopback = session.get_pending_switch()
+                            if mic:
+                                session.update_devices(mic_device=mic)
+                            if loopback:
+                                session.update_devices(loopback_device=loopback)
+                            return mic, loopback
+
                         self._backend.record_dual_to_file(
                             mic_device=session.mic_device,
                             loopback_device=session.loopback_device,
@@ -238,6 +324,8 @@ class AudioCapture(AudioCaptureBase):
                             mix_ratio=session.mix_ratio,
                             on_chunk=on_chunk,
                             writer=writer,
+                            device_switch_event=session.device_switch_event,
+                            on_device_switch=on_dual_device_switch,
                         )
                     else:
                         raise RuntimeError(
