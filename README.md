@@ -19,12 +19,14 @@ A Windows CLI tool for recording online meeting audio. Capture both remote parti
 ## Requirements
 
 - Windows 10/11
+
+**For source installation only (not needed for portable version):**
 - Python 3.11 - 3.13 (3.14+ not yet supported due to lameenc dependency)
 - uv (recommended) or pip
 
 ## Installation
 
-### Portable Version (No Python Required)
+### Portable Version (Recommended, No Python Required)
 
 Download the pre-built portable version from [Releases](https://github.com/dobachi/omni-meeting-recorder/releases):
 

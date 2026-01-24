@@ -19,12 +19,14 @@ Windows向けオンライン会議の音声録音CLIツール。スピーカー�
 ## 動作要件
 
 - Windows 10/11
+
+**ソースからインストールする場合（ポータブル版は不要）:**
 - Python 3.11 - 3.13（3.14以降はlameenc依存関係のため未サポート）
 - uv（推奨）またはpip
 
 ## インストール
 
-### ポータブル版（Python不要）
+### ポータブル版（推奨・Python不要）
 
 [Releases](https://github.com/dobachi/omni-meeting-recorder/releases)からビルド済みのポータブル版をダウンロード：
 
