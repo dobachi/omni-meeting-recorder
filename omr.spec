@@ -79,26 +79,32 @@ a = Analysis(
 )
 
 # Collect native library binaries
+# Filter to ensure proper TOC format (dest_name, src_name, typecode)
+def safe_collect_binaries(package_name):
+    """Safely collect binaries, filtering invalid entries."""
+    try:
+        binaries = collect_dynamic_libs(package_name)
+        valid_binaries = []
+        for entry in binaries:
+            if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                if len(entry) == 2:
+                    # Add default typecode 'BINARY'
+                    valid_binaries.append((entry[0], entry[1], 'BINARY'))
+                elif len(entry) >= 3:
+                    valid_binaries.append((entry[0], entry[1], entry[2]))
+        return valid_binaries
+    except Exception as e:
+        print(f"Warning: Failed to collect binaries for {package_name}: {e}")
+        return []
+
 # PyAudioWPatch includes PortAudio DLL
-try:
-    pyaudio_binaries = collect_dynamic_libs("pyaudiowpatch")
-    a.binaries += pyaudio_binaries
-except Exception:
-    pass
+a.binaries += safe_collect_binaries("pyaudiowpatch")
 
 # lameenc includes LAME encoder DLL
-try:
-    lameenc_binaries = collect_dynamic_libs("lameenc")
-    a.binaries += lameenc_binaries
-except Exception:
-    pass
+a.binaries += safe_collect_binaries("lameenc")
 
 # pyaec includes WebRTC AEC DLL
-try:
-    pyaec_binaries = collect_dynamic_libs("pyaec")
-    a.binaries += pyaec_binaries
-except Exception:
-    pass
+a.binaries += safe_collect_binaries("pyaec")
 
 # PYZ archive (compiled Python modules)
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
