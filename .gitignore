@@ -26,7 +26,8 @@ wheels/
 
 # PyInstaller
 *.manifest
-*.spec
+# Note: omr.spec is intentionally tracked for portable build
+!omr.spec
 
 # Installer logs
 pip-log.txt

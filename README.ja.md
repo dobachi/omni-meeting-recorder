@@ -23,6 +23,21 @@ Windows向けオンライン会議の音声録音CLIツール。スピーカー�
 
 ## インストール
 
+### ポータブル版（Python不要）
+
+[Releases](https://github.com/dobachi/omni-meeting-recorder/releases)からビルド済みのポータブル版をダウンロード：
+
+1. `omr-{version}-windows-x64.zip`をダウンロード
+2. 任意のフォルダに展開
+3. 展開したフォルダ内の`omr.exe`を実行
+
+```powershell
+# 使用例
+.\omr.exe --version
+.\omr.exe devices
+.\omr.exe start -o meeting.mp3
+```
+
 ### インストールせずに試す
 
 `uv`がインストールされていれば、すぐに試せます：
@@ -331,6 +346,29 @@ omr start --no-aec -o meeting.mp3
 uv sync --extra dev
 ```
 
+### ポータブル版のビルド
+
+スタンドアロンのWindows実行ファイル（Python不要）を作成：
+
+```bash
+# ビルド依存関係をインストール
+uv sync --extra dev --group build
+
+# ポータブル版をビルド
+uv run task build-portable
+
+# 出力:
+#   dist/omr/omr.exe              - スタンドアロン実行ファイル
+#   dist/omr-{version}-windows-x64.zip  - 配布用ZIP（約15MB）
+```
+
+ビルドオプション：
+
+```bash
+uv run task build-portable --clean    # ビルドディレクトリをクリーンしてからビルド
+uv run task build-portable --no-zip   # ZIP作成をスキップ
+```
+
 ### チェックの実行
 
 `uv run task`を使ってリント、型チェック、テストを実行できます：
@@ -393,7 +431,12 @@ omni-meeting-recorder/
   - [x] 自動音量正規化
   - [ ] FLAC出力対応
 
-- [ ] Phase 4: 安定化・UX
+- [x] Phase 4: 配布
+  - [x] ポータブルビルド対応（PyInstaller）
+  - [ ] GitHub Actions自動リリースビルド
+  - [ ] Releaseページでポータブル版ZIPダウンロード
+
+- [ ] Phase 5: 安定化・UX
   - [ ] 長時間録音の安定性
   - [ ] デバイス切断対応
   - [ ] 録音中ステータス表示改善
