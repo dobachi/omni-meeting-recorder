@@ -13,6 +13,7 @@ A Windows CLI tool for recording online meeting audio. Capture both remote parti
 - **Automatic Volume Normalization**: Match mic and system audio levels
 - **MP3 Output**: Direct MP3 encoding with configurable bitrate
 - **No Virtual Audio Cable Required**: Direct WASAPI Loopback support
+- **Live Device Switching**: Switch mic/loopback devices during recording via keyboard
 - **Simple CLI**: Start recording with a single command
 
 ## Requirements
@@ -144,7 +145,20 @@ omr start --stereo-split -o meeting.mp3
 omr start --loopback-device 5 --mic-device 0 -o meeting.mp3
 ```
 
-Press `Ctrl+C` to stop recording.
+### Keyboard Controls During Recording
+
+While recording, you can use these keyboard shortcuts:
+
+| Key | Function |
+|-----|----------|
+| `m` | Enter mic selection mode → press 0-9 to select device |
+| `l` | Enter loopback selection mode → press 0-9 to select device |
+| `0-9` | Select device by number (in selection mode) |
+| `Esc` | Cancel device selection |
+| `q` | Stop recording (same as Ctrl+C) |
+| `r` | Refresh device list |
+
+Press `Ctrl+C` or `q` to stop recording.
 
 ## Testing Your Setup
 
@@ -401,6 +415,7 @@ omni-meeting-recorder/
 │   ├── core/
 │   │   ├── audio_capture.py  # Audio capture abstraction
 │   │   ├── device_manager.py # Device detection/management
+│   │   ├── input_handler.py  # Keyboard input handling
 │   │   └── mixer.py          # Audio mixing/resampling
 │   ├── backends/
 │   │   └── wasapi.py         # Windows WASAPI implementation
@@ -436,7 +451,8 @@ omni-meeting-recorder/
   - [ ] GitHub Actions automated release build
   - [ ] Release page with portable ZIP download
 
-- [ ] Phase 5: Stability & UX
+- [x] Phase 5: Stability & UX
+  - [x] Live device switching via keyboard
   - [ ] Long-duration recording stability
   - [ ] Device disconnection handling
   - [ ] Recording status display improvements
