@@ -46,7 +46,7 @@ pyaec_binaries = find_pyaec_dll()
 a = Analysis(
     [str(src_dir / "omr" / "cli" / "main.py")],
     pathex=[str(src_dir)],
-    binaries=pyaec_binaries,  # Include pyaec DLL
+    binaries=[],
     datas=[],
     hiddenimports=[
         # Core dependencies
@@ -125,8 +125,11 @@ a.binaries += safe_collect_binaries("pyaudiowpatch")
 # lameenc includes LAME encoder DLL
 a.binaries += safe_collect_binaries("lameenc")
 
-# pyaec includes WebRTC AEC DLL
+# pyaec includes WebRTC AEC DLL - try collect_dynamic_libs first, then fallback
 a.binaries += safe_collect_binaries("pyaec")
+# Also add explicitly found pyaec DLL
+a.binaries += pyaec_binaries
+print(f"pyaec binaries added: {pyaec_binaries}")
 
 # PYZ archive (compiled Python modules)
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
