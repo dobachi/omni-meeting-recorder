@@ -116,10 +116,10 @@ def _create_status_panel(
         status_lines.append("[dim]─────────── Keyboard Shortcuts ───────────[/dim]")
         shortcuts = []
         if session.mode in (RecordingMode.MIC, RecordingMode.BOTH):
-            shortcuts.append("[m] Switch Mic")
+            shortcuts.append("\\[m] Switch Mic")
         if session.mode in (RecordingMode.LOOPBACK, RecordingMode.BOTH):
-            shortcuts.append("[l] Switch Loopback")
-        shortcuts.append("[q] Stop")
+            shortcuts.append("\\[l] Switch Loopback")
+        shortcuts.append("\\[q] Stop")
         status_lines.append("[dim]" + "  ".join(shortcuts) + "[/dim]")
 
     text = Text.from_markup("\n".join(status_lines))
