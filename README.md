@@ -23,6 +23,21 @@ A Windows CLI tool for recording online meeting audio. Capture both remote parti
 
 ## Installation
 
+### Portable Version (No Python Required)
+
+Download the pre-built portable version from [Releases](https://github.com/dobachi/omni-meeting-recorder/releases):
+
+1. Download `omr-{version}-windows-x64.zip`
+2. Extract to any folder
+3. Run `omr.exe` from the extracted folder
+
+```powershell
+# Example usage
+.\omr.exe --version
+.\omr.exe devices
+.\omr.exe start -o meeting.mp3
+```
+
 ### Try Without Installing
 
 If you have `uv` installed, you can try omr immediately:
@@ -331,6 +346,29 @@ Microphone and system audio often have significantly different volume levels. Fo
 uv sync --extra dev
 ```
 
+### Building Portable Version
+
+Create a standalone Windows executable (no Python required):
+
+```bash
+# Install build dependencies
+uv sync --extra dev --group build
+
+# Build portable version
+uv run task build-portable
+
+# Output:
+#   dist/omr/omr.exe              - Standalone executable
+#   dist/omr-{version}-windows-x64.zip  - Distribution ZIP (~15MB)
+```
+
+Build options:
+
+```bash
+uv run task build-portable --clean    # Clean build directories first
+uv run task build-portable --no-zip   # Skip ZIP creation
+```
+
 ### Running Checks
 
 Use `uv run task` to run linting, type checking, and tests:
@@ -393,7 +431,12 @@ omni-meeting-recorder/
   - [x] Automatic volume normalization
   - [ ] FLAC output support
 
-- [ ] Phase 4: Stability & UX
+- [x] Phase 4: Distribution
+  - [x] Portable build support (PyInstaller)
+  - [ ] GitHub Actions automated release build
+  - [ ] Release page with portable ZIP download
+
+- [ ] Phase 5: Stability & UX
   - [ ] Long-duration recording stability
   - [ ] Device disconnection handling
   - [ ] Recording status display improvements
