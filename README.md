@@ -448,8 +448,8 @@ omni-meeting-recorder/
 
 - [x] Phase 4: Distribution
   - [x] Portable build support (PyInstaller)
-  - [ ] GitHub Actions automated release build
-  - [ ] Release page with portable ZIP download
+  - [x] GitHub Actions automated release build
+  - [x] Release page with portable ZIP download
 
 - [x] Phase 5: Stability & UX
   - [x] Live device switching via keyboard

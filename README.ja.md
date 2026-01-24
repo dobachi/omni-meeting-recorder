@@ -447,8 +447,8 @@ omni-meeting-recorder/
 
 - [x] Phase 4: 配布
   - [x] ポータブルビルド対応（PyInstaller）
-  - [ ] GitHub Actions自動リリースビルド
-  - [ ] Releaseページでポータブル版ZIPダウンロード
+  - [x] GitHub Actions自動リリースビルド
+  - [x] Releaseページでポータブル版ZIPダウンロード
 
 - [ ] Phase 5: 安定化・UX
   - [ ] 長時間録音の安定性
