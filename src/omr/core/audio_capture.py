@@ -1,5 +1,6 @@
 """Audio capture abstraction layer."""
 
+import contextlib
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -178,9 +179,9 @@ class AudioCapture(AudioCaptureBase):
         def record_worker() -> None:
             from omr.core.encoder import StreamingMP3Encoder
 
+            writer = None
             try:
                 # Create MP3 encoder if direct_mp3 is enabled
-                writer = None
                 if session.direct_mp3:
                     # Determine sample rate and channels based on mode
                     if session.mode == RecordingMode.BOTH:
@@ -245,6 +246,10 @@ class AudioCapture(AudioCaptureBase):
             except Exception as e:
                 session.state.error = str(e)
             finally:
+                # Ensure writer is closed to prevent resource leaks
+                if writer is not None:
+                    with contextlib.suppress(Exception):
+                        writer.close()
                 session.state.is_recording = False
 
         session._recording_thread = threading.Thread(target=record_worker, daemon=True)

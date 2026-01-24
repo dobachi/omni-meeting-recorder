@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import threading
 import wave
 from collections.abc import Callable
@@ -406,13 +407,23 @@ class WasapiBackend:
         mic_buffer: list[int] = []
         loopback_buffer: list[int] = []
 
+        # Initialize thread references for cleanup in finally block
+        mic_thread: threading.Thread | None = None
+        loopback_thread: threading.Thread | None = None
+
+        logger = logging.getLogger(__name__)
+
         try:
             mic_stream.open()
             loopback_stream.open()
 
-            # Start reader threads
-            mic_thread = threading.Thread(target=mic_reader_thread, daemon=True)
-            loopback_thread = threading.Thread(target=loopback_reader_thread, daemon=True)
+            # Start reader threads (assigned to outer scope for cleanup in finally)
+            mic_thread = threading.Thread(
+                target=mic_reader_thread, daemon=True, name="mic_reader"
+            )
+            loopback_thread = threading.Thread(
+                target=loopback_reader_thread, daemon=True, name="loopback_reader"
+            )
             mic_thread.start()
             loopback_thread.start()
 
@@ -527,11 +538,30 @@ class WasapiBackend:
                     wf.setframerate(output_sample_rate)
                     recording_loop(wf.writeframes)
 
-            # Wait for threads to finish
+            # Wait for threads to finish (normal path)
             mic_thread.join(timeout=1.0)
             loopback_thread.join(timeout=1.0)
 
         finally:
+            # Ensure stop_event is set to signal threads to exit
+            stop_event.set()
+
+            # Wait for threads to terminate
+            if mic_thread is not None and mic_thread.is_alive():
+                mic_thread.join(timeout=2.0)
+                if mic_thread.is_alive():
+                    logger.warning("mic_reader thread did not terminate within timeout")
+
+            if loopback_thread is not None and loopback_thread.is_alive():
+                loopback_thread.join(timeout=2.0)
+                if loopback_thread.is_alive():
+                    logger.warning("loopback_reader thread did not terminate within timeout")
+
+            # Clean up AEC processor
+            if aec_processor is not None:
+                aec_processor.close()
+
+            # Close streams
             mic_stream.close()
             loopback_stream.close()
 

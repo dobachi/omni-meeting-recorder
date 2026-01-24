@@ -63,6 +63,7 @@ class TestAECProcessorWithMock:
             proc._mic_buffer = []
             proc._ref_buffer = []
             proc._output_buffer = []
+            proc._closed = False
             return proc
 
     def test_properties(self, processor: AECProcessor) -> None:

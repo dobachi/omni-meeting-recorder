@@ -58,7 +58,7 @@ class AECProcessor:
         self._frame_size = frame_size
         self._filter_length = filter_length or frame_size * 10
 
-        self._aec: Aec = Aec(
+        self._aec: Aec | None = Aec(
             frame_size=self._frame_size,
             filter_length=self._filter_length,
             sample_rate=self._sample_rate,
@@ -68,6 +68,9 @@ class AECProcessor:
         self._mic_buffer: list[int] = []
         self._ref_buffer: list[int] = []
         self._output_buffer: list[int] = []
+
+        # Track closed state
+        self._closed = False
 
     @property
     def frame_size(self) -> int:
@@ -96,7 +99,13 @@ class AECProcessor:
 
         Returns:
             Echo-cancelled microphone samples (same length as input)
+
+        Raises:
+            RuntimeError: If the processor has been closed.
         """
+        if self._closed or self._aec is None:
+            raise RuntimeError("Cannot process samples on a closed AECProcessor")
+
         input_length = len(mic_samples)
 
         # Add to buffers
@@ -178,6 +187,9 @@ class AECProcessor:
 
     def reset(self) -> None:
         """Reset AEC state and clear buffers."""
+        if self._closed:
+            raise RuntimeError("Cannot reset a closed AECProcessor")
+
         from pyaec import Aec
 
         self._aec = Aec(
@@ -188,3 +200,33 @@ class AECProcessor:
         self._mic_buffer.clear()
         self._ref_buffer.clear()
         self._output_buffer.clear()
+
+    def close(self) -> None:
+        """Release AEC resources.
+
+        After calling close(), the processor cannot be used anymore.
+        """
+        # Check if object was fully initialized (handles partial init failures)
+        if not getattr(self, "_closed", True):
+            self._aec = None
+            self._mic_buffer.clear()
+            self._ref_buffer.clear()
+            self._output_buffer.clear()
+            self._closed = True
+
+    def __enter__(self) -> AECProcessor:
+        """Context manager entry."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        """Context manager exit."""
+        self.close()
+
+    def __del__(self) -> None:
+        """Destructor to ensure resources are released."""
+        self.close()
