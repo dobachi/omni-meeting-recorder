@@ -98,9 +98,10 @@ def create_zip(project_root: Path, version: str) -> Path | None:
     zip_path = project_root / "dist" / zip_name
 
     print(f"Creating ZIP archive: {zip_name}.zip")
-    shutil.make_archive(str(zip_path), "zip", dist_dir.parent, "omr")
+    # shutil.make_archive returns the full path including .zip extension
+    created_zip = shutil.make_archive(str(zip_path), "zip", dist_dir.parent, "omr")
 
-    return zip_path.with_suffix(".zip")
+    return Path(created_zip)
 
 
 def verify_build(project_root: Path) -> bool:
