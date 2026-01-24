@@ -1,5 +1,6 @@
 """Recording commands for Omni Meeting Recorder."""
 
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -9,12 +10,21 @@ import typer
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 
 from omr.config.settings import AudioFormat, RecordingMode
 from omr.core.aec_processor import is_aec_available
 from omr.core.audio_capture import AudioCapture, RecordingSession
+from omr.core.device_manager import AudioDevice, DeviceManager, DeviceType
 from omr.core.encoder import encode_to_mp3, is_mp3_available
+from omr.core.input_handler import (
+    InputCommand,
+    InputEvent,
+    KeyInputHandler,
+    SelectionMode,
+    is_input_available,
+)
 
 app = typer.Typer(help="Recording commands")
 console = Console()
@@ -38,8 +48,20 @@ def _format_size(bytes_count: int) -> str:
     return f"{size:.1f} TB"
 
 
-def _create_status_panel(session: RecordingSession) -> Panel:
-    """Create a status panel for the recording."""
+def _create_status_panel(
+    session: RecordingSession,
+    selection_mode: SelectionMode = SelectionMode.NONE,
+    available_devices: list[AudioDevice] | None = None,
+    status_message: str | None = None,
+) -> Panel:
+    """Create a status panel for the recording.
+
+    Args:
+        session: The recording session.
+        selection_mode: Current device selection mode.
+        available_devices: List of devices to show in selection mode.
+        status_message: Optional status message to display.
+    """
     state = session.state
     elapsed = 0.0
     if state.start_time:
@@ -63,10 +85,42 @@ def _create_status_panel(session: RecordingSession) -> Panel:
         f"[cyan]Mode:[/cyan] {mode_text}",
         f"[cyan]Duration:[/cyan] {_format_duration(elapsed)}",
         f"[cyan]Size:[/cyan] {_format_size(state.bytes_recorded)}",
-        f"[cyan]Output:[/cyan] {state.output_file}",
-        "",
-        "[dim]Press Ctrl+C to stop[/dim]",
     ]
+
+    # Show current devices
+    if session.mic_device:
+        status_lines.append(f"[cyan]Microphone:[/cyan] {session.mic_device.name}")
+    if session.loopback_device:
+        status_lines.append(f"[cyan]Loopback:[/cyan] {session.loopback_device.name}")
+
+    status_lines.append(f"[cyan]Output:[/cyan] {state.output_file}")
+
+    # Show status message if any
+    if status_message:
+        status_lines.append("")
+        status_lines.append(f"[yellow]{status_message}[/yellow]")
+
+    # Show device selection or keyboard shortcuts
+    if selection_mode != SelectionMode.NONE and available_devices:
+        mode_name = "Microphone" if selection_mode == SelectionMode.MIC else "Loopback"
+        status_lines.append("")
+        status_lines.append(f"[bold yellow]Select {mode_name} Device:[/bold yellow]")
+        for i, device in enumerate(available_devices[:10]):  # Max 10 devices
+            default_marker = " [default]" if device.is_default else ""
+            status_lines.append(f"  [cyan]{i}[/cyan]: {device.name}{default_marker}")
+        status_lines.append("")
+        status_lines.append("[dim]Press 0-9 to select, Esc to cancel[/dim]")
+    else:
+        # Show keyboard shortcuts
+        status_lines.append("")
+        status_lines.append("[dim]─────────── Keyboard Shortcuts ───────────[/dim]")
+        shortcuts = []
+        if session.mode in (RecordingMode.MIC, RecordingMode.BOTH):
+            shortcuts.append("[m] Switch Mic")
+        if session.mode in (RecordingMode.LOOPBACK, RecordingMode.BOTH):
+            shortcuts.append("[l] Switch Loopback")
+        shortcuts.append("[q] Stop")
+        status_lines.append("[dim]" + "  ".join(shortcuts) + "[/dim]")
 
     text = Text.from_markup("\n".join(status_lines))
     return Panel(text, title="Omni Meeting Recorder", border_style="green")
@@ -254,19 +308,128 @@ def start(
         # Start recording
         audio_capture.start_recording(session)
         console.print("[green]Recording started![/green]")
-        console.print("[dim]Press Ctrl+C to stop[/dim]")
+        if is_input_available():
+            console.print("[dim]Press 'q' to stop, 'm' to switch mic, 'l' to switch loopback[/dim]")
+        else:
+            console.print("[dim]Press Ctrl+C to stop[/dim]")
         console.print()
 
-        # Show live status - use try/except for KeyboardInterrupt (works better on Windows)
+        # State for device selection mode
+        selection_mode = SelectionMode.NONE
+        available_devices: list[AudioDevice] = []
+        status_message: str | None = None
+        input_handler: KeyInputHandler | None = None
+
+        # Get device manager for device listing
+        device_manager = audio_capture.device_manager
+
+        def get_devices_for_mode(sel_mode: SelectionMode) -> list[AudioDevice]:
+            """Get available devices for the selection mode."""
+            if sel_mode == SelectionMode.MIC:
+                return device_manager.get_input_devices()
+            elif sel_mode == SelectionMode.LOOPBACK:
+                return device_manager.get_loopback_devices()
+            return []
+
+        def handle_device_selection(device_index: int) -> str | None:
+            """Handle device selection. Returns status message or None."""
+            nonlocal selection_mode, available_devices
+            if device_index >= len(available_devices):
+                return f"Invalid device index: {device_index}"
+
+            selected_device = available_devices[device_index]
+            if selection_mode == SelectionMode.MIC:
+                session.request_device_switch(mic_device=selected_device)
+                msg = f"Switching mic to: {selected_device.name}"
+            else:
+                session.request_device_switch(loopback_device=selected_device)
+                msg = f"Switching loopback to: {selected_device.name}"
+
+            selection_mode = SelectionMode.NONE
+            available_devices = []
+            if input_handler:
+                input_handler.exit_selection_mode()
+            return msg
+
+        def handle_input_event(event: InputEvent) -> bool:
+            """Handle an input event. Returns True if should stop recording."""
+            nonlocal selection_mode, available_devices, status_message
+
+            if event.command == InputCommand.STOP:
+                return True
+
+            elif event.command == InputCommand.SWITCH_MIC:
+                if session.mode in (RecordingMode.MIC, RecordingMode.BOTH):
+                    selection_mode = SelectionMode.MIC
+                    available_devices = get_devices_for_mode(selection_mode)
+                    if input_handler:
+                        input_handler.enter_selection_mode(selection_mode)
+                    status_message = None
+
+            elif event.command == InputCommand.SWITCH_LOOPBACK:
+                if session.mode in (RecordingMode.LOOPBACK, RecordingMode.BOTH):
+                    selection_mode = SelectionMode.LOOPBACK
+                    available_devices = get_devices_for_mode(selection_mode)
+                    if input_handler:
+                        input_handler.enter_selection_mode(selection_mode)
+                    status_message = None
+
+            elif event.command == InputCommand.SELECT_DEVICE:
+                if selection_mode != SelectionMode.NONE and event.value is not None:
+                    status_message = handle_device_selection(event.value)
+
+            elif event.command == InputCommand.CANCEL:
+                selection_mode = SelectionMode.NONE
+                available_devices = []
+                if input_handler:
+                    input_handler.exit_selection_mode()
+                status_message = None
+
+            elif event.command == InputCommand.REFRESH_DEVICES:
+                device_manager.initialize()  # Re-scan devices
+                status_message = "Device list refreshed"
+
+            return False
+
+        # Show live status with keyboard input handling
         try:
-            with Live(_create_status_panel(session), refresh_per_second=2, transient=True) as live:
+            if is_input_available():
+                input_handler = KeyInputHandler()
+                input_handler.start()
+
+            with Live(
+                _create_status_panel(session, selection_mode, available_devices, status_message),
+                refresh_per_second=4,
+                transient=True,
+            ) as live:
                 while session.state.is_recording:
-                    live.update(_create_status_panel(session))
-                    # Use shorter sleep for more responsive Ctrl+C handling
-                    time.sleep(0.1)
+                    # Check for keyboard input
+                    if input_handler:
+                        event = input_handler.get_event(timeout=0.05)
+                        if event:
+                            should_stop = handle_input_event(event)
+                            if should_stop:
+                                console.print("\n[yellow]Stopping recording...[/yellow]")
+                                session.request_stop()
+                                break
+                            # Clear status message after a short delay
+                            if status_message and "Switching" not in status_message:
+                                time.sleep(0.5)
+                                status_message = None
+
+                    live.update(
+                        _create_status_panel(
+                            session, selection_mode, available_devices, status_message
+                        )
+                    )
+                    time.sleep(0.05)
+
         except KeyboardInterrupt:
             console.print("\n[yellow]Stopping recording...[/yellow]")
             session.request_stop()
+        finally:
+            if input_handler:
+                input_handler.stop()
             # Wait for recording thread to finish
             audio_capture.stop_recording(session)
 

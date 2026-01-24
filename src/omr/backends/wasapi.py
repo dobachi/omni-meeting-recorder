@@ -173,6 +173,8 @@ class WasapiBackend:
         stop_event: threading.Event,
         on_chunk: Callable[[bytes], None] | None = None,
         writer: AudioWriter | None = None,
+        device_switch_event: threading.Event | None = None,
+        on_device_switch: Callable[[], AudioDevice | None] | None = None,
     ) -> None:
         """Record audio from a device to a file.
 
@@ -183,13 +185,19 @@ class WasapiBackend:
             on_chunk: Optional callback for each audio chunk
             writer: Optional AudioWriter for direct output (e.g., StreamingMP3Encoder).
                     If None, records to WAV file at output_path.
+            device_switch_event: Optional event to signal device switch request.
+            on_device_switch: Callback to get new device when switch is requested.
+                              Returns new AudioDevice or None to keep current.
         """
         import pyaudiowpatch as pyaudio
+
+        logger = logging.getLogger(__name__)
 
         if self._pyaudio is None:
             self.initialize()
 
-        stream = self.create_stream(device)
+        current_device = device
+        stream = self.create_stream(current_device)
         stream.open()
 
         sample_width = self._pyaudio.get_sample_size(pyaudio.paInt16)
@@ -202,6 +210,28 @@ class WasapiBackend:
             if writer is not None:
                 # Use provided writer (e.g., StreamingMP3Encoder)
                 while not stop_event.is_set():
+                    # Check for device switch request
+                    if (
+                        device_switch_event is not None
+                        and device_switch_event.is_set()
+                        and on_device_switch is not None
+                    ):
+                        new_device = on_device_switch()
+                        if new_device is not None:
+                            try:
+                                # Close current stream
+                                stream.close()
+                                # Create new stream with new device
+                                current_device = new_device
+                                stream = self.create_stream(current_device)
+                                stream.open()
+                                logger.info(f"Switched to device: {current_device.name}")
+                            except Exception as e:
+                                logger.error(f"Device switch failed: {e}")
+                                # Try to reopen previous device
+                                stream = self.create_stream(current_device)
+                                stream.open()
+
                     try:
                         data = stream.read()
                         writer.write(data)
@@ -220,6 +250,25 @@ class WasapiBackend:
                     wf.setframerate(sample_rate)
 
                     while not stop_event.is_set():
+                        # Check for device switch request
+                        if (
+                            device_switch_event is not None
+                            and device_switch_event.is_set()
+                            and on_device_switch is not None
+                        ):
+                            new_device = on_device_switch()
+                            if new_device is not None:
+                                try:
+                                    stream.close()
+                                    current_device = new_device
+                                    stream = self.create_stream(current_device)
+                                    stream.open()
+                                    logger.info(f"Switched to device: {current_device.name}")
+                                except Exception as e:
+                                    logger.error(f"Device switch failed: {e}")
+                                    stream = self.create_stream(current_device)
+                                    stream.open()
+
                         try:
                             data = stream.read()
                             wf.writeframes(data)
@@ -245,6 +294,8 @@ class WasapiBackend:
         mix_ratio: float = 0.5,
         on_chunk: Callable[[bytes], None] | None = None,
         writer: AudioWriter | None = None,
+        device_switch_event: threading.Event | None = None,
+        on_device_switch: Callable[[], tuple[AudioDevice | None, AudioDevice | None]] | None = None,
     ) -> None:
         """Record audio from both mic and loopback devices to a single file.
 
@@ -263,6 +314,10 @@ class WasapiBackend:
             on_chunk: Callback for each output chunk
             writer: Optional AudioWriter for direct output (e.g., StreamingMP3Encoder).
                     If None, records to WAV file at output_path.
+            device_switch_event: Optional event to signal device switch request.
+            on_device_switch: Callback to get new devices when switch is requested.
+                              Returns tuple of (mic_device, loopback_device).
+                              Either may be None to keep current device.
         """
         import struct
         from queue import Empty, Queue
@@ -374,35 +429,6 @@ class WasapiBackend:
         loopback_target_rms = 8000.0  # Target RMS level (~25% of 16-bit peak)
         mic_target_rms = 16000.0  # Higher target for mic (~49% of 16-bit peak)
 
-        def mic_reader_thread() -> None:
-            """Thread to read from microphone."""
-            while not stop_event.is_set():
-                try:
-                    data = mic_stream.read()
-                    samples = list(struct.unpack(f"<{len(data) // 2}h", data))
-                    mono = to_mono(samples, mic_channels)
-                    # Resample to output rate
-                    resampled = resample_simple(mono, mic_sample_rate, output_sample_rate)
-                    with contextlib.suppress(Exception):
-                        mic_queue.put_nowait(resampled)  # Drop if queue full
-                except Exception:
-                    if stop_event.is_set():
-                        break
-
-        def loopback_reader_thread() -> None:
-            """Thread to read from loopback."""
-            while not stop_event.is_set():
-                try:
-                    data = loopback_stream.read()
-                    samples = list(struct.unpack(f"<{len(data) // 2}h", data))
-                    # Use left channel only to avoid phase-related echo
-                    mono = to_mono(samples, loopback_channels, use_left_only=True)
-                    with contextlib.suppress(Exception):
-                        loopback_queue.put_nowait(mono)  # Drop if queue full
-                except Exception:
-                    if stop_event.is_set():
-                        break
-
         # Buffers for accumulating samples
         mic_buffer: list[int] = []
         loopback_buffer: list[int] = []
@@ -411,18 +437,156 @@ class WasapiBackend:
         mic_thread: threading.Thread | None = None
         loopback_thread: threading.Thread | None = None
 
-        logger = logging.getLogger(__name__)
+        # Shared state for device switching
+        reader_pause_event = threading.Event()
+        reader_resume_event = threading.Event()
+        reader_resume_event.set()  # Initially not paused
+
+        # Mutable container for current devices/streams (for thread access)
+        current_state = {
+            "mic_device": mic_device,
+            "loopback_device": loopback_device,
+            "mic_stream": mic_stream,
+            "loopback_stream": loopback_stream,
+            "mic_sample_rate": mic_sample_rate,
+            "loopback_sample_rate": loopback_sample_rate,
+            "mic_channels": mic_channels,
+            "loopback_channels": loopback_channels,
+        }
+
+        def mic_reader_thread_v2() -> None:
+            """Thread to read from microphone with pause support."""
+            while not stop_event.is_set():
+                # Check for pause
+                if reader_pause_event.is_set():
+                    reader_resume_event.wait(timeout=0.1)
+                    continue
+                try:
+                    stream = current_state["mic_stream"]
+                    if stream is None or not stream.is_running:
+                        import time
+                        time.sleep(0.01)
+                        continue
+                    data = stream.read()
+                    samples = list(struct.unpack(f"<{len(data) // 2}h", data))
+                    mono = to_mono(samples, current_state["mic_channels"])
+                    resampled = resample_simple(
+                        mono,
+                        current_state["mic_sample_rate"],
+                        output_sample_rate
+                    )
+                    with contextlib.suppress(Exception):
+                        mic_queue.put_nowait(resampled)
+                except Exception:
+                    if stop_event.is_set() or reader_pause_event.is_set():
+                        continue
+
+        def loopback_reader_thread_v2() -> None:
+            """Thread to read from loopback with pause support."""
+            while not stop_event.is_set():
+                # Check for pause
+                if reader_pause_event.is_set():
+                    reader_resume_event.wait(timeout=0.1)
+                    continue
+                try:
+                    stream = current_state["loopback_stream"]
+                    if stream is None or not stream.is_running:
+                        import time
+                        time.sleep(0.01)
+                        continue
+                    data = stream.read()
+                    samples = list(struct.unpack(f"<{len(data) // 2}h", data))
+                    mono = to_mono(samples, current_state["loopback_channels"], use_left_only=True)
+                    with contextlib.suppress(Exception):
+                        loopback_queue.put_nowait(mono)
+                except Exception:
+                    if stop_event.is_set() or reader_pause_event.is_set():
+                        continue
+
+        def perform_device_switch() -> bool:
+            """Perform device switch. Returns True if switch was successful."""
+            nonlocal aec_processor
+
+            if on_device_switch is None:
+                return False
+
+            new_mic, new_loopback = on_device_switch()
+            if new_mic is None and new_loopback is None:
+                return False
+
+            # Pause reader threads
+            reader_pause_event.set()
+            reader_resume_event.clear()
+            import time
+            time.sleep(0.05)  # Give threads time to pause
+
+            success = True
+            try:
+                # Switch mic device if requested
+                if new_mic is not None:
+                    try:
+                        old_stream = current_state["mic_stream"]
+                        if old_stream:
+                            old_stream.close()
+                        new_stream = self.create_stream(new_mic)
+                        new_stream.open()
+                        current_state["mic_device"] = new_mic
+                        current_state["mic_stream"] = new_stream
+                        current_state["mic_sample_rate"] = int(new_mic.default_sample_rate)
+                        current_state["mic_channels"] = new_stream._config.channels
+                        logger.info(f"Switched mic to: {new_mic.name}")
+                    except Exception as e:
+                        logger.error(f"Mic device switch failed: {e}")
+                        success = False
+
+                # Switch loopback device if requested
+                if new_loopback is not None:
+                    try:
+                        old_stream = current_state["loopback_stream"]
+                        if old_stream:
+                            old_stream.close()
+                        new_stream = self.create_stream(new_loopback)
+                        new_stream.open()
+                        current_state["loopback_device"] = new_loopback
+                        current_state["loopback_stream"] = new_stream
+                        current_state["loopback_sample_rate"] = int(new_loopback.default_sample_rate)
+                        current_state["loopback_channels"] = new_stream._config.channels
+                        logger.info(f"Switched loopback to: {new_loopback.name}")
+                    except Exception as e:
+                        logger.error(f"Loopback device switch failed: {e}")
+                        success = False
+
+                # Clear queues and buffers
+                while not mic_queue.empty():
+                    try:
+                        mic_queue.get_nowait()
+                    except Empty:
+                        break
+                while not loopback_queue.empty():
+                    try:
+                        loopback_queue.get_nowait()
+                    except Empty:
+                        break
+                mic_buffer.clear()
+                loopback_buffer.clear()
+
+            finally:
+                # Resume reader threads
+                reader_pause_event.clear()
+                reader_resume_event.set()
+
+            return success
 
         try:
             mic_stream.open()
             loopback_stream.open()
 
-            # Start reader threads (assigned to outer scope for cleanup in finally)
+            # Start reader threads with pause support
             mic_thread = threading.Thread(
-                target=mic_reader_thread, daemon=True, name="mic_reader"
+                target=mic_reader_thread_v2, daemon=True, name="mic_reader"
             )
             loopback_thread = threading.Thread(
-                target=loopback_reader_thread, daemon=True, name="loopback_reader"
+                target=loopback_reader_thread_v2, daemon=True, name="loopback_reader"
             )
             mic_thread.start()
             loopback_thread.start()
@@ -434,6 +598,13 @@ class WasapiBackend:
                 nonlocal mic_rms_history, loopback_rms_history
 
                 while not stop_event.is_set():
+                    # Check for device switch request
+                    if (
+                        device_switch_event is not None
+                        and device_switch_event.is_set()
+                    ):
+                        perform_device_switch()
+
                     # Drain queues into buffers
                     while True:
                         try:
@@ -545,6 +716,9 @@ class WasapiBackend:
         finally:
             # Ensure stop_event is set to signal threads to exit
             stop_event.set()
+            # Also clear pause to ensure threads can exit
+            reader_pause_event.clear()
+            reader_resume_event.set()
 
             # Wait for threads to terminate
             if mic_thread is not None and mic_thread.is_alive():
@@ -561,9 +735,11 @@ class WasapiBackend:
             if aec_processor is not None:
                 aec_processor.close()
 
-            # Close streams
-            mic_stream.close()
-            loopback_stream.close()
+            # Close current streams (may have been switched)
+            if current_state["mic_stream"] is not None:
+                current_state["mic_stream"].close()
+            if current_state["loopback_stream"] is not None:
+                current_state["loopback_stream"].close()
 
     def __enter__(self) -> WasapiBackend:
         """Context manager entry."""
