@@ -437,6 +437,9 @@ class WasapiBackend:
         mic_thread: threading.Thread | None = None
         loopback_thread: threading.Thread | None = None
 
+        # Logger for this method
+        logger = logging.getLogger(__name__)
+
         # Shared state for device switching
         reader_pause_event = threading.Event()
         reader_resume_event = threading.Event()
