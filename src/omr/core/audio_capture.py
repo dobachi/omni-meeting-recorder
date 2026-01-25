@@ -344,6 +344,22 @@ class AudioCapture(AudioCaptureBase):
                                 session.update_devices(loopback_device=loopback)
                             return mic, loopback
 
+                        def on_find_alternative(
+                            source: str, current_device: AudioDevice
+                        ) -> AudioDevice | None:
+                            """Find alternative device when error occurs."""
+                            self._device_manager.refresh_devices()
+                            alternative = self._device_manager.get_alternative_device(
+                                current_device
+                            )
+                            if alternative:
+                                # Update session with new device
+                                if source == "mic":
+                                    session.update_devices(mic_device=alternative)
+                                else:
+                                    session.update_devices(loopback_device=alternative)
+                            return alternative
+
                         self._backend.record_dual_to_file(
                             mic_device=session.mic_device,
                             loopback_device=session.loopback_device,
@@ -359,6 +375,7 @@ class AudioCapture(AudioCaptureBase):
                             device_switch_event=session.device_switch_event,
                             on_device_switch=on_dual_device_switch,
                             on_device_error=session.handle_device_error,
+                            on_find_alternative=on_find_alternative,
                         )
                     else:
                         raise RuntimeError(

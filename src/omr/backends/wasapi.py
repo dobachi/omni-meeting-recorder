@@ -85,16 +85,11 @@ class WasapiStream:
         with self._lock:
             if self._stream is not None:
                 self._is_running = False
-                try:
+                # Stream may already be closed due to device disconnection
+                with contextlib.suppress(OSError):
                     self._stream.stop_stream()
-                except OSError:
-                    # Stream may already be closed due to device disconnection
-                    pass
-                try:
+                with contextlib.suppress(OSError):
                     self._stream.close()
-                except OSError:
-                    # Stream may already be closed due to device disconnection
-                    pass
                 self._stream = None
 
     def read(self) -> bytes:
@@ -334,6 +329,7 @@ class WasapiBackend:
         device_switch_event: threading.Event | None = None,
         on_device_switch: Callable[[], tuple[AudioDevice | None, AudioDevice | None]] | None = None,
         on_device_error: Callable[[DeviceError], None] | None = None,
+        on_find_alternative: Callable[[str, AudioDevice], AudioDevice | None] | None = None,
     ) -> None:
         """Record audio from both mic and loopback devices to a single file.
 
@@ -358,6 +354,9 @@ class WasapiBackend:
                               Either may be None to keep current device.
             on_device_error: Callback when a device error is detected.
                              Called with DeviceError describing the error.
+            on_find_alternative: Callback to find alternative device on error.
+                                 Takes (source, current_device) and returns alternative
+                                 AudioDevice or None if no alternative available.
         """
         import struct
         from queue import Empty, Queue
@@ -539,8 +538,9 @@ class WasapiBackend:
                         with contextlib.suppress(Exception):
                             error_queue.put_nowait(device_error)
                         logger.warning(f"Mic device error detected: {device_error}")
-                        # Stop this thread - let main loop handle recovery
-                        break
+                        # Pause and wait for recovery or stop
+                        reader_pause_event.set()
+                        consecutive_errors = 0
 
         def loopback_reader_thread_v2() -> None:
             """Thread to read from loopback with pause support and error detection."""
@@ -573,8 +573,9 @@ class WasapiBackend:
                         with contextlib.suppress(Exception):
                             error_queue.put_nowait(device_error)
                         logger.warning(f"Loopback device error detected: {device_error}")
-                        # Stop this thread - let main loop handle recovery
-                        break
+                        # Pause and wait for recovery or stop
+                        reader_pause_event.set()
+                        consecutive_errors = 0
 
         def perform_device_switch() -> bool:
             """Perform device switch. Returns True if switch was successful."""
@@ -652,6 +653,80 @@ class WasapiBackend:
 
             return success
 
+        def perform_device_switch_for_source(
+            source: str, new_device: AudioDevice
+        ) -> bool:
+            """Perform device switch for a specific source (mic or loopback).
+
+            Args:
+                source: "mic" or "loopback"
+                new_device: The new device to switch to
+
+            Returns:
+                True if switch was successful, False otherwise
+            """
+            # Threads are already paused from error detection
+            import time
+            time.sleep(0.05)  # Give threads time to fully pause
+
+            success = True
+            try:
+                if source == "mic":
+                    try:
+                        old_stream = current_state["mic_stream"]
+                        if old_stream:
+                            old_stream.close()
+                        new_stream = self.create_stream(new_device)
+                        new_stream.open()
+                        current_state["mic_device"] = new_device
+                        current_state["mic_stream"] = new_stream
+                        current_state["mic_sample_rate"] = int(
+                            new_device.default_sample_rate
+                        )
+                        current_state["mic_channels"] = new_stream._config.channels
+                        logger.info(f"Auto-switched mic to: {new_device.name}")
+                    except Exception as e:
+                        logger.error(f"Mic device auto-switch failed: {e}")
+                        success = False
+                else:  # loopback
+                    try:
+                        old_stream = current_state["loopback_stream"]
+                        if old_stream:
+                            old_stream.close()
+                        new_stream = self.create_stream(new_device)
+                        new_stream.open()
+                        current_state["loopback_device"] = new_device
+                        current_state["loopback_stream"] = new_stream
+                        current_state["loopback_sample_rate"] = int(
+                            new_device.default_sample_rate
+                        )
+                        current_state["loopback_channels"] = new_stream._config.channels
+                        logger.info(f"Auto-switched loopback to: {new_device.name}")
+                    except Exception as e:
+                        logger.error(f"Loopback device auto-switch failed: {e}")
+                        success = False
+
+                # Clear queues and buffers
+                while not mic_queue.empty():
+                    try:
+                        mic_queue.get_nowait()
+                    except Empty:
+                        break
+                while not loopback_queue.empty():
+                    try:
+                        loopback_queue.get_nowait()
+                    except Empty:
+                        break
+                mic_buffer.clear()
+                loopback_buffer.clear()
+
+            finally:
+                # Resume reader threads
+                reader_pause_event.clear()
+                reader_resume_event.set()
+
+            return success
+
         try:
             mic_stream.open()
             loopback_stream.open()
@@ -673,16 +748,50 @@ class WasapiBackend:
                 nonlocal mic_rms_history, loopback_rms_history
 
                 while not stop_event.is_set():
-                    # Check for device errors
+                    # Check for device errors and attempt recovery
                     while not error_queue.empty():
                         try:
                             device_error = error_queue.get_nowait()
                             if on_device_error:
                                 on_device_error(device_error)
-                            # Stop recording on device error
-                            # (auto-recovery not yet implemented)
-                            stop_event.set()
-                            return
+
+                            # Try to find alternative device
+                            alternative = None
+                            current_device = None
+                            if on_find_alternative:
+                                if device_error.source == "mic":
+                                    current_device = current_state["mic_device"]
+                                else:
+                                    current_device = current_state["loopback_device"]
+                                alternative = on_find_alternative(
+                                    device_error.source, current_device
+                                )
+
+                            if alternative:
+                                # Trigger device switch
+                                logger.info(
+                                    f"Auto-switching {device_error.source} to: "
+                                    f"{alternative.name}"
+                                )
+                                if device_error.source == "mic":
+                                    if on_device_switch:
+                                        # Use existing switch mechanism
+                                        current_state["mic_device"] = alternative
+                                        perform_device_switch_for_source("mic", alternative)
+                                else:
+                                    if on_device_switch:
+                                        current_state["loopback_device"] = alternative
+                                        perform_device_switch_for_source(
+                                            "loopback", alternative
+                                        )
+                            else:
+                                # No alternative found, stop recording
+                                logger.warning(
+                                    f"No alternative device found for {device_error.source}, "
+                                    "stopping recording"
+                                )
+                                stop_event.set()
+                                return
                         except Empty:
                             break
 
