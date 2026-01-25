@@ -653,6 +653,81 @@ class WasapiBackend:
 
             return success
 
+        def perform_batch_device_switch(
+            switches: list[tuple[str, AudioDevice]]
+        ) -> bool:
+            """Perform multiple device switches at once.
+
+            This is used when multiple devices fail simultaneously.
+
+            Args:
+                switches: List of (source, new_device) tuples
+
+            Returns:
+                True if all switches were successful, False otherwise
+            """
+            import time
+            time.sleep(0.05)  # Give threads time to fully pause
+
+            success = True
+            try:
+                for source, new_device in switches:
+                    if source == "mic":
+                        try:
+                            old_stream = current_state["mic_stream"]
+                            if old_stream:
+                                old_stream.close()
+                            new_stream = self.create_stream(new_device)
+                            new_stream.open()
+                            current_state["mic_device"] = new_device
+                            current_state["mic_stream"] = new_stream
+                            current_state["mic_sample_rate"] = int(
+                                new_device.default_sample_rate
+                            )
+                            current_state["mic_channels"] = new_stream._config.channels
+                            logger.info(f"Batch-switched mic to: {new_device.name}")
+                        except Exception as e:
+                            logger.error(f"Mic device batch-switch failed: {e}")
+                            success = False
+                    else:  # loopback
+                        try:
+                            old_stream = current_state["loopback_stream"]
+                            if old_stream:
+                                old_stream.close()
+                            new_stream = self.create_stream(new_device)
+                            new_stream.open()
+                            current_state["loopback_device"] = new_device
+                            current_state["loopback_stream"] = new_stream
+                            current_state["loopback_sample_rate"] = int(
+                                new_device.default_sample_rate
+                            )
+                            current_state["loopback_channels"] = new_stream._config.channels
+                            logger.info(f"Batch-switched loopback to: {new_device.name}")
+                        except Exception as e:
+                            logger.error(f"Loopback device batch-switch failed: {e}")
+                            success = False
+
+                # Clear queues and buffers
+                while not mic_queue.empty():
+                    try:
+                        mic_queue.get_nowait()
+                    except Empty:
+                        break
+                while not loopback_queue.empty():
+                    try:
+                        loopback_queue.get_nowait()
+                    except Empty:
+                        break
+                mic_buffer.clear()
+                loopback_buffer.clear()
+
+            finally:
+                # Resume reader threads
+                reader_pause_event.clear()
+                reader_resume_event.set()
+
+            return success
+
         def perform_device_switch_for_source(
             source: str, new_device: AudioDevice
         ) -> bool:
@@ -749,15 +824,25 @@ class WasapiBackend:
 
                 while not stop_event.is_set():
                     # Check for device errors and attempt recovery
+                    # Collect all errors first to handle multiple device failures at once
+                    errors_to_process: list[DeviceError] = []
                     while not error_queue.empty():
                         try:
-                            device_error = error_queue.get_nowait()
+                            errors_to_process.append(error_queue.get_nowait())
+                        except Empty:
+                            break
+
+                    if errors_to_process:
+                        # Notify all errors
+                        for device_error in errors_to_process:
                             if on_device_error:
                                 on_device_error(device_error)
 
-                            # Try to find alternative device
-                            alternative = None
-                            current_device = None
+                        # Find alternatives for all failed devices
+                        switches_to_perform: list[tuple[str, AudioDevice]] = []
+                        should_stop = False
+
+                        for device_error in errors_to_process:
                             if on_find_alternative:
                                 if device_error.source == "mic":
                                     current_device = current_state["mic_device"]
@@ -766,34 +851,30 @@ class WasapiBackend:
                                 alternative = on_find_alternative(
                                     device_error.source, current_device
                                 )
-
-                            if alternative:
-                                # Trigger device switch
-                                logger.info(
-                                    f"Auto-switching {device_error.source} to: "
-                                    f"{alternative.name}"
-                                )
-                                if device_error.source == "mic":
-                                    if on_device_switch:
-                                        # Use existing switch mechanism
-                                        current_state["mic_device"] = alternative
-                                        perform_device_switch_for_source("mic", alternative)
+                                if alternative:
+                                    switches_to_perform.append(
+                                        (device_error.source, alternative)
+                                    )
+                                    logger.info(
+                                        f"Found alternative for {device_error.source}: "
+                                        f"{alternative.name}"
+                                    )
                                 else:
-                                    if on_device_switch:
-                                        current_state["loopback_device"] = alternative
-                                        perform_device_switch_for_source(
-                                            "loopback", alternative
-                                        )
+                                    logger.warning(
+                                        f"No alternative device found for "
+                                        f"{device_error.source}, stopping recording"
+                                    )
+                                    should_stop = True
                             else:
-                                # No alternative found, stop recording
-                                logger.warning(
-                                    f"No alternative device found for {device_error.source}, "
-                                    "stopping recording"
-                                )
-                                stop_event.set()
-                                return
-                        except Empty:
-                            break
+                                should_stop = True
+
+                        if should_stop:
+                            stop_event.set()
+                            return
+
+                        # Perform all switches at once
+                        if switches_to_perform:
+                            perform_batch_device_switch(switches_to_perform)
 
                     # Check for device switch request
                     if (
