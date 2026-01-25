@@ -679,10 +679,10 @@ class WasapiBackend:
                             device_error = error_queue.get_nowait()
                             if on_device_error:
                                 on_device_error(device_error)
-                            # If error is unrecoverable, stop recording
-                            if not device_error.can_recover:
-                                stop_event.set()
-                                return
+                            # Stop recording on device error
+                            # (auto-recovery not yet implemented)
+                            stop_event.set()
+                            return
                         except Empty:
                             break
 
