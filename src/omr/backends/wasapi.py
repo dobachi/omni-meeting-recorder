@@ -437,7 +437,7 @@ class WasapiBackend:
                     mono.append(samples[i])
                 else:
                     # Average all channels
-                    mono.append(sum(samples[i:i+channels]) // channels)
+                    mono.append(sum(samples[i : i + channels]) // channels)
             return mono
 
         def resample_simple(samples: list[int], from_rate: int, to_rate: int) -> list[int]:
@@ -528,15 +528,14 @@ class WasapiBackend:
                     stream = current_state["mic_stream"]
                     if stream is None or not stream.is_running:
                         import time
+
                         time.sleep(0.01)
                         continue
                     data = stream.read()
                     samples = list(struct.unpack(f"<{len(data) // 2}h", data))
                     mono = to_mono(samples, current_state["mic_channels"])
                     resampled = resample_simple(
-                        mono,
-                        current_state["mic_sample_rate"],
-                        output_sample_rate
+                        mono, current_state["mic_sample_rate"], output_sample_rate
                     )
                     with contextlib.suppress(Exception):
                         mic_queue.put_nowait(resampled)
@@ -553,6 +552,7 @@ class WasapiBackend:
                         logger.warning(f"Mic device error detected: {device_error}")
                         # Pause and wait for recovery or stop
                         reader_pause_event.set()
+                        reader_resume_event.clear()  # Ensure thread blocks on wait
                         consecutive_errors = 0
 
         def loopback_reader_thread_v2() -> None:
@@ -568,6 +568,7 @@ class WasapiBackend:
                     stream = current_state["loopback_stream"]
                     if stream is None or not stream.is_running:
                         import time
+
                         time.sleep(0.01)
                         continue
                     data = stream.read()
@@ -588,6 +589,7 @@ class WasapiBackend:
                         logger.warning(f"Loopback device error detected: {device_error}")
                         # Pause and wait for recovery or stop
                         reader_pause_event.set()
+                        reader_resume_event.clear()  # Ensure thread blocks on wait
                         consecutive_errors = 0
 
         def perform_device_switch() -> bool:
@@ -605,6 +607,7 @@ class WasapiBackend:
             reader_pause_event.set()
             reader_resume_event.clear()
             import time
+
             time.sleep(0.05)  # Give threads time to pause
 
             success = True
@@ -666,9 +669,7 @@ class WasapiBackend:
 
             return success
 
-        def perform_batch_device_switch(
-            switches: list[tuple[str, AudioDevice]]
-        ) -> bool:
+        def perform_batch_device_switch(switches: list[tuple[str, AudioDevice]]) -> bool:
             """Perform multiple device switches at once.
 
             This is used when multiple devices fail simultaneously.
@@ -679,10 +680,12 @@ class WasapiBackend:
             Returns:
                 True if all switches were successful, False otherwise
             """
-            # Ensure reader threads are properly paused
-            # (reader_pause_event is already set by error detection)
+            # Explicitly pause reader threads (may already be paused by error detection,
+            # but we need to ensure consistent state)
+            reader_pause_event.set()
             reader_resume_event.clear()
             import time
+
             time.sleep(0.05)  # Give threads time to fully pause
 
             success = True
@@ -697,9 +700,7 @@ class WasapiBackend:
                             new_stream.open()
                             current_state["mic_device"] = new_device
                             current_state["mic_stream"] = new_stream
-                            current_state["mic_sample_rate"] = int(
-                                new_device.default_sample_rate
-                            )
+                            current_state["mic_sample_rate"] = int(new_device.default_sample_rate)
                             current_state["mic_channels"] = new_stream._config.channels
                             logger.info(f"Batch-switched mic to: {new_device.name}")
                         except Exception as e:
@@ -744,9 +745,7 @@ class WasapiBackend:
 
             return success
 
-        def perform_device_switch_for_source(
-            source: str, new_device: AudioDevice
-        ) -> bool:
+        def perform_device_switch_for_source(source: str, new_device: AudioDevice) -> bool:
             """Perform device switch for a specific source (mic or loopback).
 
             Args:
@@ -758,6 +757,7 @@ class WasapiBackend:
             """
             # Threads are already paused from error detection
             import time
+
             time.sleep(0.05)  # Give threads time to fully pause
 
             success = True
@@ -771,9 +771,7 @@ class WasapiBackend:
                         new_stream.open()
                         current_state["mic_device"] = new_device
                         current_state["mic_stream"] = new_stream
-                        current_state["mic_sample_rate"] = int(
-                            new_device.default_sample_rate
-                        )
+                        current_state["mic_sample_rate"] = int(new_device.default_sample_rate)
                         current_state["mic_channels"] = new_stream._config.channels
                         logger.info(f"Auto-switched mic to: {new_device.name}")
                     except Exception as e:
@@ -788,9 +786,7 @@ class WasapiBackend:
                         new_stream.open()
                         current_state["loopback_device"] = new_device
                         current_state["loopback_stream"] = new_stream
-                        current_state["loopback_sample_rate"] = int(
-                            new_device.default_sample_rate
-                        )
+                        current_state["loopback_sample_rate"] = int(new_device.default_sample_rate)
                         current_state["loopback_channels"] = new_stream._config.channels
                         logger.info(f"Auto-switched loopback to: {new_device.name}")
                     except Exception as e:
@@ -868,9 +864,7 @@ class WasapiBackend:
                                     device_error.source, current_device
                                 )
                                 if alternative:
-                                    switches_to_perform.append(
-                                        (device_error.source, alternative)
-                                    )
+                                    switches_to_perform.append((device_error.source, alternative))
                                     logger.info(
                                         f"Found alternative for {device_error.source}: "
                                         f"{alternative.name}"
@@ -893,10 +887,7 @@ class WasapiBackend:
                             perform_batch_device_switch(switches_to_perform)
 
                     # Check for device switch request
-                    if (
-                        device_switch_event is not None
-                        and device_switch_event.is_set()
-                    ):
+                    if device_switch_event is not None and device_switch_event.is_set():
                         perform_device_switch()
 
                     # Drain queues into buffers
@@ -929,9 +920,7 @@ class WasapiBackend:
                         # Apply AEC if enabled
                         if aec_processor is not None:
                             # process_samples returns same length as input
-                            mic_chunk = aec_processor.process_samples(
-                                mic_chunk, loopback_chunk
-                            )
+                            mic_chunk = aec_processor.process_samples(mic_chunk, loopback_chunk)
 
                         # Automatic gain control: normalize both channels to target level
                         mic_rms = calc_rms(mic_chunk)
@@ -988,6 +977,7 @@ class WasapiBackend:
                     else:
                         # No loopback data yet, small sleep to avoid busy loop
                         import time
+
                         time.sleep(0.001)
 
             # Execute recording loop with appropriate writer
