@@ -679,6 +679,9 @@ class WasapiBackend:
             Returns:
                 True if all switches were successful, False otherwise
             """
+            # Ensure reader threads are properly paused
+            # (reader_pause_event is already set by error detection)
+            reader_resume_event.clear()
             import time
             time.sleep(0.05)  # Give threads time to fully pause
 
