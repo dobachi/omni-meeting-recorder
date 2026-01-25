@@ -4,12 +4,14 @@ import contextlib
 import logging
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 from omr.backends.wasapi import WasapiBackend
 from omr.config.settings import RecordingMode, Settings
+from omr.core.device_errors import DeviceError
 from omr.core.device_manager import AudioDevice, DeviceManager
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,8 @@ class RecordingState:
     output_file: Path | None = None
     bytes_recorded: int = 0
     error: str | None = None
+    device_error: DeviceError | None = None
+    is_partial_save: bool = False
 
 
 @dataclass
@@ -49,6 +53,8 @@ class RecordingSession:
     _pending_mic_device: AudioDevice | None = field(default=None)
     _pending_loopback_device: AudioDevice | None = field(default=None)
     _device_switch_lock: threading.Lock = field(default_factory=threading.Lock)
+    # Device error callback
+    _device_error_callback: Callable[[DeviceError], None] | None = field(default=None)
 
     def request_stop(self) -> None:
         """Request the recording to stop."""
@@ -110,6 +116,28 @@ class RecordingSession:
             self.mic_device = mic_device
         if loopback_device is not None:
             self.loopback_device = loopback_device
+
+    def set_device_error_callback(
+        self, callback: Callable[[DeviceError], None] | None
+    ) -> None:
+        """Set the callback to be invoked when a device error occurs.
+
+        Args:
+            callback: Function to call with DeviceError when an error occurs.
+                      Set to None to disable callback.
+        """
+        self._device_error_callback = callback
+
+    def handle_device_error(self, error: DeviceError) -> None:
+        """Handle a device error by updating state and calling callback.
+
+        Args:
+            error: The device error that occurred.
+        """
+        self.state.device_error = error
+        self.state.is_partial_save = True
+        if self._device_error_callback:
+            self._device_error_callback(error)
 
 
 class AudioCaptureBase(ABC):
@@ -289,6 +317,7 @@ class AudioCapture(AudioCaptureBase):
                         writer=writer,
                         device_switch_event=session.device_switch_event,
                         on_device_switch=on_single_device_switch,
+                        on_device_error=session.handle_device_error,
                     )
                 elif session.mode == RecordingMode.MIC and session.mic_device:
                     self._backend.record_to_file(
@@ -299,6 +328,7 @@ class AudioCapture(AudioCaptureBase):
                         writer=writer,
                         device_switch_event=session.device_switch_event,
                         on_device_switch=on_single_device_switch,
+                        on_device_error=session.handle_device_error,
                     )
                 elif session.mode == RecordingMode.BOTH:
                     if session.mic_device and session.loopback_device:
@@ -328,6 +358,7 @@ class AudioCapture(AudioCaptureBase):
                             writer=writer,
                             device_switch_event=session.device_switch_event,
                             on_device_switch=on_dual_device_switch,
+                            on_device_error=session.handle_device_error,
                         )
                     else:
                         raise RuntimeError(

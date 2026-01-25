@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from omr.config.settings import AudioSettings
+from omr.core.device_errors import DeviceError
 from omr.core.device_manager import AudioDevice, DeviceType
 
 if TYPE_CHECKING:
@@ -175,6 +176,7 @@ class WasapiBackend:
         writer: AudioWriter | None = None,
         device_switch_event: threading.Event | None = None,
         on_device_switch: Callable[[], AudioDevice | None] | None = None,
+        on_device_error: Callable[[DeviceError], None] | None = None,
     ) -> None:
         """Record audio from a device to a file.
 
@@ -188,6 +190,8 @@ class WasapiBackend:
             device_switch_event: Optional event to signal device switch request.
             on_device_switch: Callback to get new device when switch is requested.
                               Returns new AudioDevice or None to keep current.
+            on_device_error: Callback when a device error is detected.
+                             Called with DeviceError describing the error.
         """
         import pyaudiowpatch as pyaudio
 
@@ -205,6 +209,13 @@ class WasapiBackend:
         # Use the actual stream config settings for WAV file
         channels = stream._config.channels
         sample_rate = stream._config.sample_rate
+
+        # Error tracking for consecutive error detection
+        consecutive_errors = 0
+        max_consecutive_errors = 3
+
+        # Determine source name for error reporting
+        source = "loopback" if current_device.device_type == DeviceType.LOOPBACK else "mic"
 
         try:
             if writer is not None:
@@ -237,10 +248,19 @@ class WasapiBackend:
                         writer.write(data)
                         if on_chunk:
                             on_chunk(data)
-                    except Exception:
+                        consecutive_errors = 0  # Reset on success
+                    except Exception as e:
                         if stop_event.is_set():
                             break
-                        raise
+                        consecutive_errors += 1
+                        if consecutive_errors >= max_consecutive_errors:
+                            device_error = DeviceError.from_exception(source, e)
+                            logger.warning(f"Device error detected: {device_error}")
+                            if on_device_error:
+                                on_device_error(device_error)
+                            if not device_error.can_recover:
+                                raise
+                            break
                 writer.close()
             else:
                 # Default: write to WAV file
@@ -274,10 +294,19 @@ class WasapiBackend:
                             wf.writeframes(data)
                             if on_chunk:
                                 on_chunk(data)
-                        except Exception:
+                            consecutive_errors = 0  # Reset on success
+                        except Exception as e:
                             if stop_event.is_set():
                                 break
-                            raise
+                            consecutive_errors += 1
+                            if consecutive_errors >= max_consecutive_errors:
+                                device_error = DeviceError.from_exception(source, e)
+                                logger.warning(f"Device error detected: {device_error}")
+                                if on_device_error:
+                                    on_device_error(device_error)
+                                if not device_error.can_recover:
+                                    raise
+                                break
         finally:
             stream.close()
 
@@ -296,6 +325,7 @@ class WasapiBackend:
         writer: AudioWriter | None = None,
         device_switch_event: threading.Event | None = None,
         on_device_switch: Callable[[], tuple[AudioDevice | None, AudioDevice | None]] | None = None,
+        on_device_error: Callable[[DeviceError], None] | None = None,
     ) -> None:
         """Record audio from both mic and loopback devices to a single file.
 
@@ -318,6 +348,8 @@ class WasapiBackend:
             on_device_switch: Callback to get new devices when switch is requested.
                               Returns tuple of (mic_device, loopback_device).
                               Either may be None to keep current device.
+            on_device_error: Callback when a device error is detected.
+                             Called with DeviceError describing the error.
         """
         import struct
         from queue import Empty, Queue
@@ -361,6 +393,12 @@ class WasapiBackend:
         # Thread-safe queues for audio data
         mic_queue: Queue[list[int]] = Queue(maxsize=100)
         loopback_queue: Queue[list[int]] = Queue(maxsize=100)
+
+        # Error queue for device errors
+        error_queue: Queue[DeviceError] = Queue(maxsize=10)
+
+        # Error tracking for consecutive error detection
+        max_consecutive_errors = 3
 
         def to_mono(samples: list[int], channels: int, use_left_only: bool = False) -> list[int]:
             """Convert to mono.
@@ -458,11 +496,13 @@ class WasapiBackend:
         }
 
         def mic_reader_thread_v2() -> None:
-            """Thread to read from microphone with pause support."""
+            """Thread to read from microphone with pause support and error detection."""
+            consecutive_errors = 0
             while not stop_event.is_set():
                 # Check for pause
                 if reader_pause_event.is_set():
                     reader_resume_event.wait(timeout=0.1)
+                    consecutive_errors = 0  # Reset on pause
                     continue
                 try:
                     stream = current_state["mic_stream"]
@@ -480,16 +520,28 @@ class WasapiBackend:
                     )
                     with contextlib.suppress(Exception):
                         mic_queue.put_nowait(resampled)
-                except Exception:
+                    consecutive_errors = 0  # Reset on success
+                except Exception as e:
                     if stop_event.is_set() or reader_pause_event.is_set():
                         continue
+                    consecutive_errors += 1
+                    if consecutive_errors >= max_consecutive_errors:
+                        # Device likely disconnected
+                        device_error = DeviceError.from_exception("mic", e)
+                        with contextlib.suppress(Exception):
+                            error_queue.put_nowait(device_error)
+                        logger.warning(f"Mic device error detected: {device_error}")
+                        # Stop this thread - let main loop handle recovery
+                        break
 
         def loopback_reader_thread_v2() -> None:
-            """Thread to read from loopback with pause support."""
+            """Thread to read from loopback with pause support and error detection."""
+            consecutive_errors = 0
             while not stop_event.is_set():
                 # Check for pause
                 if reader_pause_event.is_set():
                     reader_resume_event.wait(timeout=0.1)
+                    consecutive_errors = 0  # Reset on pause
                     continue
                 try:
                     stream = current_state["loopback_stream"]
@@ -502,9 +554,19 @@ class WasapiBackend:
                     mono = to_mono(samples, current_state["loopback_channels"], use_left_only=True)
                     with contextlib.suppress(Exception):
                         loopback_queue.put_nowait(mono)
-                except Exception:
+                    consecutive_errors = 0  # Reset on success
+                except Exception as e:
                     if stop_event.is_set() or reader_pause_event.is_set():
                         continue
+                    consecutive_errors += 1
+                    if consecutive_errors >= max_consecutive_errors:
+                        # Device likely disconnected
+                        device_error = DeviceError.from_exception("loopback", e)
+                        with contextlib.suppress(Exception):
+                            error_queue.put_nowait(device_error)
+                        logger.warning(f"Loopback device error detected: {device_error}")
+                        # Stop this thread - let main loop handle recovery
+                        break
 
         def perform_device_switch() -> bool:
             """Perform device switch. Returns True if switch was successful."""
@@ -603,6 +665,19 @@ class WasapiBackend:
                 nonlocal mic_rms_history, loopback_rms_history
 
                 while not stop_event.is_set():
+                    # Check for device errors
+                    while not error_queue.empty():
+                        try:
+                            device_error = error_queue.get_nowait()
+                            if on_device_error:
+                                on_device_error(device_error)
+                            # If error is unrecoverable, stop recording
+                            if not device_error.can_recover:
+                                stop_event.set()
+                                return
+                        except Empty:
+                            break
+
                     # Check for device switch request
                     if (
                         device_switch_event is not None

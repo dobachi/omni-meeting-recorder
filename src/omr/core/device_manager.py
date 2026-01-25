@@ -206,3 +206,55 @@ class DeviceManager:
             if d.index == index:
                 return d
         return None
+
+    def get_alternative_device(
+        self,
+        current_device: AudioDevice,
+        exclude_indices: list[int] | None = None,
+    ) -> AudioDevice | None:
+        """Get an alternative device of the same type.
+
+        This is useful when a device is disconnected and we need to find a replacement.
+
+        Args:
+            current_device: The device to find an alternative for.
+            exclude_indices: List of device indices to exclude from selection.
+
+        Returns:
+            An alternative device of the same type, or None if no alternative found.
+            Prefers default device if available.
+        """
+        exclude = set(exclude_indices or [])
+        exclude.add(current_device.index)
+
+        # Get devices of the same type
+        if current_device.device_type == DeviceType.INPUT:
+            candidates = self.get_input_devices()
+        elif current_device.device_type == DeviceType.LOOPBACK:
+            candidates = self.get_loopback_devices()
+        elif current_device.device_type == DeviceType.OUTPUT:
+            candidates = self.get_output_devices()
+        else:
+            return None
+
+        # Filter out excluded devices
+        candidates = [d for d in candidates if d.index not in exclude]
+
+        if not candidates:
+            return None
+
+        # Prefer default device
+        for d in candidates:
+            if d.is_default:
+                return d
+
+        # Return first available
+        return candidates[0]
+
+    def refresh_devices(self) -> None:
+        """Refresh the device list by re-scanning.
+
+        This is useful after a device disconnect to discover new/changed devices.
+        """
+        self._initialized = False
+        self.initialize()

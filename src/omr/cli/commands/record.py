@@ -14,6 +14,7 @@ from rich.text import Text
 from omr.config.settings import AudioFormat, RecordingMode
 from omr.core.aec_processor import is_aec_available
 from omr.core.audio_capture import AudioCapture, RecordingSession
+from omr.core.device_errors import DeviceError, DeviceErrorType
 from omr.core.device_manager import AudioDevice
 from omr.core.encoder import encode_to_mp3, is_mp3_available
 from omr.core.input_handler import (
@@ -51,6 +52,7 @@ def _create_status_panel(
     selection_mode: SelectionMode = SelectionMode.NONE,
     available_devices: list[AudioDevice] | None = None,
     status_message: str | None = None,
+    device_error: DeviceError | None = None,
 ) -> Panel:
     """Create a status panel for the recording.
 
@@ -59,6 +61,7 @@ def _create_status_panel(
         selection_mode: Current device selection mode.
         available_devices: List of devices to show in selection mode.
         status_message: Optional status message to display.
+        device_error: Optional device error to display.
     """
     state = session.state
     elapsed = 0.0
@@ -77,13 +80,37 @@ def _create_status_panel(
             RecordingMode.MIC: "Microphone",
         }.get(session.mode, "Unknown")
 
+    # Determine recording status indicator based on device error
+    if device_error:
+        status_indicator = "[bold yellow]● Recording (Device Error)[/bold yellow]"
+        border_style = "yellow"
+    else:
+        status_indicator = "[bold green]● Recording[/bold green]"
+        border_style = "green"
+
     status_lines = [
-        "[bold green]● Recording[/bold green]",
+        status_indicator,
         "",
         f"[cyan]Mode:[/cyan] {mode_text}",
         f"[cyan]Duration:[/cyan] {_format_duration(elapsed)}",
         f"[cyan]Size:[/cyan] {_format_size(state.bytes_recorded)}",
     ]
+
+    # Show device error if any
+    if device_error:
+        error_type_str = {
+            DeviceErrorType.DISCONNECTED: "disconnected",
+            DeviceErrorType.ACCESS_DENIED: "access denied",
+            DeviceErrorType.UNKNOWN: "error",
+        }.get(device_error.error_type, "error")
+        status_lines.append("")
+        status_lines.append(
+            f"[bold red]Warning:[/bold red] {device_error.source} device {error_type_str}"
+        )
+        if device_error.can_recover:
+            status_lines.append("[dim]Recording continues with available device(s)[/dim]")
+        else:
+            status_lines.append("[dim]Recording will stop[/dim]")
 
     # Show current devices
     if session.mic_device:
@@ -121,7 +148,7 @@ def _create_status_panel(
         status_lines.append("[dim]" + "  ".join(shortcuts) + "[/dim]")
 
     text = Text.from_markup("\n".join(status_lines))
-    return Panel(text, title="Omni Meeting Recorder", border_style="green")
+    return Panel(text, title="Omni Meeting Recorder", border_style=border_style)
 
 
 @app.command("start")
@@ -319,6 +346,15 @@ def start(
         available_devices: list[AudioDevice] = []
         status_message: str | None = None
         input_handler: KeyInputHandler | None = None
+        current_device_error: DeviceError | None = None
+
+        # Set up device error callback
+        def on_device_error(error: DeviceError) -> None:
+            """Callback when device error is detected."""
+            nonlocal current_device_error
+            current_device_error = error
+
+        session.set_device_error_callback(on_device_error)
 
         # Get device manager for device listing
         device_manager = audio_capture.device_manager
@@ -398,7 +434,9 @@ def start(
                 input_handler.start()
 
             with Live(
-                _create_status_panel(session, selection_mode, available_devices, status_message),
+                _create_status_panel(
+                    session, selection_mode, available_devices, status_message, current_device_error
+                ),
                 refresh_per_second=4,
                 transient=True,
             ) as live:
@@ -417,9 +455,17 @@ def start(
                                 time.sleep(0.5)
                                 status_message = None
 
+                    # Update device error from session state
+                    if session.state.device_error and not current_device_error:
+                        current_device_error = session.state.device_error
+
                     live.update(
                         _create_status_panel(
-                            session, selection_mode, available_devices, status_message
+                            session,
+                            selection_mode,
+                            available_devices,
+                            status_message,
+                            current_device_error,
                         )
                     )
                     time.sleep(0.05)
@@ -444,7 +490,22 @@ def start(
             elapsed = (datetime.now() - state.start_time).total_seconds()
 
         console.print()
-        console.print("[green]Recording complete![/green]")
+
+        # Check if recording was interrupted by device error
+        if state.is_partial_save and state.device_error:
+            console.print("[yellow]Recording stopped due to device error![/yellow]")
+            error_type_str = {
+                DeviceErrorType.DISCONNECTED: "disconnected",
+                DeviceErrorType.ACCESS_DENIED: "access denied",
+                DeviceErrorType.UNKNOWN: "error",
+            }.get(state.device_error.error_type, "error")
+            console.print(
+                f"[yellow]Device:[/yellow] {state.device_error.source} ({error_type_str})"
+            )
+            console.print("[cyan]Partial recording saved:[/cyan]")
+        else:
+            console.print("[green]Recording complete![/green]")
+
         console.print(f"[cyan]Duration:[/cyan] {_format_duration(elapsed)}")
         console.print(f"[cyan]Size:[/cyan] {_format_size(state.bytes_recorded)}")
 
