@@ -1,6 +1,5 @@
 """Recording commands for Omni Meeting Recorder."""
 
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -10,13 +9,12 @@ import typer
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from omr.config.settings import AudioFormat, RecordingMode
 from omr.core.aec_processor import is_aec_available
 from omr.core.audio_capture import AudioCapture, RecordingSession
-from omr.core.device_manager import AudioDevice, DeviceManager, DeviceType
+from omr.core.device_manager import AudioDevice
 from omr.core.encoder import encode_to_mp3, is_mp3_available
 from omr.core.input_handler import (
     InputCommand,
@@ -175,14 +173,16 @@ def start(
         int, typer.Option("--bitrate", "-b", help="MP3 bitrate in kbps")
     ] = 128,
     keep_wav: Annotated[
-        bool, typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion (only with --post-convert)")
+        bool,
+        typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion"),
     ] = False,
     post_convert: Annotated[
         bool, typer.Option("--post-convert", help="WAV録音後にMP3変換（旧動作）")
     ] = False,
     # Deprecated option - kept for backward compatibility
     direct_mp3: Annotated[
-        bool, typer.Option("--direct-mp3", help="[非推奨] 直接MP3出力（現在はデフォルト動作）", hidden=True)
+        bool,
+        typer.Option("--direct-mp3", help="[非推奨] 直接MP3出力", hidden=True),
     ] = False,
 ) -> None:
     """Start recording audio."""

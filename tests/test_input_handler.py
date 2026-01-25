@@ -1,11 +1,8 @@
 """Tests for the keyboard input handler module."""
 
 import sys
-import threading
 import time
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from omr.core.input_handler import (
     InputCommand,

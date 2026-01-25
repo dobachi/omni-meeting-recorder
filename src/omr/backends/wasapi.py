@@ -552,7 +552,9 @@ class WasapiBackend:
                         new_stream.open()
                         current_state["loopback_device"] = new_loopback
                         current_state["loopback_stream"] = new_stream
-                        current_state["loopback_sample_rate"] = int(new_loopback.default_sample_rate)
+                        current_state["loopback_sample_rate"] = int(
+                            new_loopback.default_sample_rate
+                        )
                         current_state["loopback_channels"] = new_stream._config.channels
                         logger.info(f"Switched loopback to: {new_loopback.name}")
                     except Exception as e:

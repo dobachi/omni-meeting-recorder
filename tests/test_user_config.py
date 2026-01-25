@@ -1,6 +1,5 @@
 """Tests for user configuration file functionality."""
 
-import os
 from pathlib import Path
 
 import pytest

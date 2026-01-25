@@ -303,7 +303,9 @@ class AudioCapture(AudioCaptureBase):
                 elif session.mode == RecordingMode.BOTH:
                     if session.mic_device and session.loopback_device:
 
-                        def on_dual_device_switch() -> tuple[AudioDevice | None, AudioDevice | None]:
+                        def on_dual_device_switch() -> (
+                            tuple[AudioDevice | None, AudioDevice | None]
+                        ):
                             """Callback for dual device switching."""
                             mic, loopback = session.get_pending_switch()
                             if mic:
