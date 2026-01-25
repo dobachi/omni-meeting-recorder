@@ -131,10 +131,10 @@ class KeyInputHandler:
 
         while not self._stop_event.is_set():
             # Check if a key is available
-            if msvcrt.kbhit():
+            if msvcrt.kbhit():  # type: ignore[attr-defined]
                 try:
                     # Get the key (bytes)
-                    key = msvcrt.getch()
+                    key = msvcrt.getch()  # type: ignore[attr-defined]
                     self._process_key(key)
                 except Exception:
                     # Ignore any input errors

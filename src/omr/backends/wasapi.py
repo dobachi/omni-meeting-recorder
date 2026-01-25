@@ -9,7 +9,7 @@ import wave
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, TypedDict
 
 from omr.config.settings import AudioSettings
 from omr.core.device_errors import DeviceError
@@ -29,6 +29,19 @@ class AudioWriter(Protocol):
     def close(self) -> None:
         """ライターを閉じる."""
         ...
+
+
+class _CurrentState(TypedDict):
+    """Type definition for current recording state dictionary."""
+
+    mic_device: AudioDevice
+    loopback_device: AudioDevice
+    mic_stream: WasapiStream | None
+    loopback_stream: WasapiStream | None
+    mic_sample_rate: int
+    loopback_sample_rate: int
+    mic_channels: int
+    loopback_channels: int
 
 
 @dataclass
@@ -491,7 +504,7 @@ class WasapiBackend:
         reader_resume_event.set()  # Initially not paused
 
         # Mutable container for current devices/streams (for thread access)
-        current_state = {
+        current_state: _CurrentState = {
             "mic_device": mic_device,
             "loopback_device": loopback_device,
             "mic_stream": mic_stream,
