@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
+from omr import __version__
 from omr.cli import main as main_module
 from omr.cli.commands import record as record_module
 from omr.cli.main import app
@@ -21,7 +22,7 @@ class TestMainCLI:
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "Omni Meeting Recorder" in result.stdout
-        assert "0.4.1" in result.stdout
+        assert __version__ in result.stdout
 
     def test_help(self):
         """Test --help flag shows help."""

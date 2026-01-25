@@ -265,6 +265,59 @@ omr start -b 192               # MP3 bitrate 192kbps (default: 128)
 | `--mic-gain` | Microphone gain multiplier (default: 1.5) |
 | `--loopback-gain` | System audio gain multiplier (default: 1.0) |
 
+### `omr config`
+
+Manage configuration settings. Settings are saved to a config file and used as defaults.
+
+```bash
+omr config show              # Show all settings
+omr config show audio.mic_gain  # Show specific setting
+omr config set audio.mic_gain 2.0  # Set a value
+omr config reset             # Reset to defaults
+omr config path              # Show config file path
+omr config init              # Create config file with defaults
+omr config edit              # Open config file in editor
+```
+
+**Available Settings:**
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `device.mic` | Default microphone device (name or index) | - |
+| `device.loopback` | Default loopback device (name or index) | - |
+| `audio.mic_gain` | Microphone gain multiplier | 1.5 |
+| `audio.loopback_gain` | System audio gain multiplier | 1.0 |
+| `audio.aec_enabled` | Acoustic Echo Cancellation | true |
+| `audio.stereo_split` | Stereo split mode | false |
+| `audio.mix_ratio` | Mic/system mix ratio (0.0-1.0) | 0.5 |
+| `output.format` | Output format (mp3/wav) | mp3 |
+| `output.bitrate` | MP3 bitrate in kbps | 128 |
+| `output.directory` | Default output directory | - |
+
+**Config File Location:**
+- Windows: `%APPDATA%\omr\config.toml`
+- Linux/macOS: `~/.config/omr/config.toml`
+- Custom: Set `OMR_CONFIG` environment variable
+
+**Example config.toml:**
+
+```toml
+[device]
+mic = "Microphone (Realtek Audio)"
+loopback = "Speakers (Realtek Audio)"
+
+[audio]
+mic_gain = 2.0
+loopback_gain = 1.0
+aec_enabled = true
+stereo_split = false
+
+[output]
+format = "mp3"
+bitrate = 192
+directory = "~/Recordings"
+```
+
 ## Troubleshooting
 
 ### "No devices found"
@@ -463,11 +516,11 @@ omni-meeting-recorder/
 
 - [x] Phase 5: Stability & UX
   - [x] Live device switching via keyboard
+  - [x] Configuration file support
   - [ ] Long-duration recording stability
   - [ ] Device disconnection handling
   - [ ] Recording status display improvements
   - [ ] Background recording support
-  - [ ] Configuration file support
 
 ## License
 

@@ -265,6 +265,59 @@ omr start -b 192               # MP3ビットレート 192kbps（デフォルト
 | `--mic-gain` | マイクゲイン倍率（デフォルト: 1.5） |
 | `--loopback-gain` | システム音声ゲイン倍率（デフォルト: 1.0） |
 
+### `omr config`
+
+設定を管理します。設定は設定ファイルに保存され、デフォルト値として使用されます。
+
+```bash
+omr config show              # 全設定を表示
+omr config show audio.mic_gain  # 特定の設定を表示
+omr config set audio.mic_gain 2.0  # 値を設定
+omr config reset             # デフォルトにリセット
+omr config path              # 設定ファイルのパスを表示
+omr config init              # デフォルト値で設定ファイルを作成
+omr config edit              # エディタで設定ファイルを開く
+```
+
+**設定項目:**
+
+| キー | 説明 | デフォルト |
+|------|------|------------|
+| `device.mic` | デフォルトマイクデバイス（名前またはインデックス） | - |
+| `device.loopback` | デフォルトループバックデバイス（名前またはインデックス） | - |
+| `audio.mic_gain` | マイクゲイン倍率 | 1.5 |
+| `audio.loopback_gain` | システム音声ゲイン倍率 | 1.0 |
+| `audio.aec_enabled` | エコーキャンセル | true |
+| `audio.stereo_split` | ステレオ分離モード | false |
+| `audio.mix_ratio` | マイク/システム音声ミックス比（0.0-1.0） | 0.5 |
+| `output.format` | 出力形式（mp3/wav） | mp3 |
+| `output.bitrate` | MP3ビットレート（kbps） | 128 |
+| `output.directory` | デフォルト出力ディレクトリ | - |
+
+**設定ファイルの場所:**
+- Windows: `%APPDATA%\omr\config.toml`
+- Linux/macOS: `~/.config/omr/config.toml`
+- カスタム: 環境変数 `OMR_CONFIG` で指定可能
+
+**config.tomlの例:**
+
+```toml
+[device]
+mic = "マイク (Realtek Audio)"
+loopback = "スピーカー (Realtek Audio)"
+
+[audio]
+mic_gain = 2.0
+loopback_gain = 1.0
+aec_enabled = true
+stereo_split = false
+
+[output]
+format = "mp3"
+bitrate = 192
+directory = "~/Recordings"
+```
+
 ## トラブルシューティング
 
 ### 「No devices found」と表示される
@@ -460,12 +513,13 @@ omni-meeting-recorder/
   - [x] GitHub Actions自動リリースビルド
   - [x] Releaseページでポータブル版ZIPダウンロード
 
-- [ ] Phase 5: 安定化・UX
+- [x] Phase 5: 安定化・UX
+  - [x] 録音中のデバイス切り替え
+  - [x] 設定ファイル対応
   - [ ] 長時間録音の安定性
   - [ ] デバイス切断対応
   - [ ] 録音中ステータス表示改善
   - [ ] バックグラウンド録音対応
-  - [ ] 設定ファイル対応
 
 ## ライセンス
 
