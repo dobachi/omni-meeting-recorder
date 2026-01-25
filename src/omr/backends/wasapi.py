@@ -85,8 +85,16 @@ class WasapiStream:
         with self._lock:
             if self._stream is not None:
                 self._is_running = False
-                self._stream.stop_stream()
-                self._stream.close()
+                try:
+                    self._stream.stop_stream()
+                except OSError:
+                    # Stream may already be closed due to device disconnection
+                    pass
+                try:
+                    self._stream.close()
+                except OSError:
+                    # Stream may already be closed due to device disconnection
+                    pass
                 self._stream = None
 
     def read(self) -> bytes:
