@@ -16,6 +16,14 @@ A Windows CLI tool for recording online meeting audio. Capture both remote parti
 - **Live Device Switching**: Switch mic/loopback devices during recording via keyboard
 - **Simple CLI**: Start recording with a single command
 
+## Documentation
+
+- [Concept](docs/CONCEPT.md) - Why this tool exists and design principles
+- [Technical Design](docs/DESIGN.md) - Architecture and implementation details
+- [Contributing](docs/CONTRIBUTING.md) - Development guidelines
+
+日本語版: [コンセプト](docs/CONCEPT.ja.md) | [技術設計](docs/DESIGN.ja.md) | [開発者向け](docs/CONTRIBUTING.ja.md)
+
 ## Requirements
 
 - Windows 10/11

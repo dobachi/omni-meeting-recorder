@@ -16,6 +16,14 @@ Windows向けオンライン会議の音声録音CLIツール。スピーカー�
 - **録音中のデバイス切り替え**: キーボード操作でマイク/ループバックデバイスを切り替え
 - **シンプルなCLI**: 1コマンドで録音開始
 
+## ドキュメント
+
+- [コンセプト](docs/CONCEPT.ja.md) - このツールが存在する理由と設計原則
+- [技術設計](docs/DESIGN.ja.md) - アーキテクチャと実装の詳細
+- [開発者向け](docs/CONTRIBUTING.ja.md) - 開発ガイドライン
+
+English: [Concept](docs/CONCEPT.md) | [Technical Design](docs/DESIGN.md) | [Contributing](docs/CONTRIBUTING.md)
+
 ## 動作要件
 
 - Windows 10/11
