@@ -522,6 +522,13 @@ omni-meeting-recorder/
   - [ ] Recording status display improvements
   - [ ] Background recording support
 
+- [ ] Phase 6: Timer Features
+  - [ ] Soft timer (--soft-timer): notification only, recording continues
+  - [ ] Hard timer (--hard-timer): automatic recording stop
+  - [ ] Scheduled recording (--start-at / --end-at)
+  - [ ] Remaining/elapsed time display
+  - [ ] Timer settings in config file
+
 ## License
 
 MIT License
