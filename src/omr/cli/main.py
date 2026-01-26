@@ -71,6 +71,13 @@ def start_recording(
         "--aec/--no-aec",
         help="Enable acoustic echo cancellation (requires pyaec)",
     ),
+    aec_strength: Annotated[
+        int | None,
+        typer.Option(
+            "--aec-strength",
+            help="AEC filter strength multiplier (5-100, higher = stronger echo cancellation)",
+        ),
+    ] = None,
     mic_gain: Annotated[
         float | None, typer.Option("--mic-gain", help="Microphone gain multiplier")
     ] = None,
@@ -117,6 +124,9 @@ def start_recording(
         loopback_gain if loopback_gain is not None else user_config.audio.loopback_gain
     )
     effective_aec = aec if aec is not None else user_config.audio.aec_enabled
+    effective_aec_strength = (
+        aec_strength if aec_strength is not None else user_config.audio.aec_filter_multiplier
+    )
     effective_stereo_split = (
         stereo_split if stereo_split is not None else user_config.audio.stereo_split
     )
@@ -175,6 +185,7 @@ def start_recording(
         loopback_device=effective_loopback_device,
         stereo_split=effective_stereo_split,
         aec=effective_aec,
+        aec_strength=effective_aec_strength,
         mic_gain=effective_mic_gain,
         loopback_gain=effective_loopback_gain,
         mix_ratio=effective_mix_ratio,

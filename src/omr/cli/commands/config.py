@@ -27,6 +27,7 @@ CONFIG_KEYS = {
     "audio.mic_gain": "Microphone gain multiplier (0.1-10.0)",
     "audio.loopback_gain": "System audio gain multiplier (0.1-10.0)",
     "audio.aec_enabled": "Acoustic Echo Cancellation (true/false)",
+    "audio.aec_filter_multiplier": "AEC filter strength multiplier (5-100)",
     "audio.stereo_split": "Stereo split mode (true/false)",
     "audio.mix_ratio": "Mic/system mix ratio (0.0-1.0)",
     "output.format": "Output format (mp3/wav/flac)",

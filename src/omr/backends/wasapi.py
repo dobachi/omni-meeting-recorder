@@ -334,6 +334,7 @@ class WasapiBackend:
         stop_event: threading.Event,
         stereo_split: bool = True,
         aec_enabled: bool = False,
+        aec_filter_multiplier: int = 30,
         mic_gain: float = 1.5,
         loopback_gain: float = 1.0,
         mix_ratio: float = 0.5,
@@ -355,6 +356,8 @@ class WasapiBackend:
             stop_event: Event to signal recording stop
             stereo_split: If True, left=mic, right=system. If False, mix both.
             aec_enabled: If True, apply acoustic echo cancellation to mic signal.
+            aec_filter_multiplier: AEC filter strength (5-100, default 30).
+                                   Higher values provide stronger echo cancellation.
             mic_gain: Microphone gain multiplier (applied after AGC).
             loopback_gain: System audio gain multiplier (applied after AGC).
             mix_ratio: Mic/system mix ratio (0.0-1.0). Higher = more mic.
@@ -405,9 +408,13 @@ class WasapiBackend:
                 # Use 160 samples frame size (10ms at 16kHz, common for AEC)
                 # Scale frame size based on sample rate
                 aec_frame_size = max(160, output_sample_rate // 100)
+                # filter_length = frame_size * multiplier
+                # Default multiplier 30 gives ~300ms filter (recommended for reverberant rooms)
+                aec_filter_length = aec_frame_size * aec_filter_multiplier
                 aec_processor = AECProcessorClass(
                     sample_rate=output_sample_rate,
                     frame_size=aec_frame_size,
+                    filter_length=aec_filter_length,
                 )
 
         # Thread-safe queues for audio data

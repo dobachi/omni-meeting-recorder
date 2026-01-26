@@ -85,6 +85,7 @@ class AudioConfig(BaseModel):
     mic_gain: Annotated[float, Field(ge=0.1, le=10.0)] = 1.5
     loopback_gain: Annotated[float, Field(ge=0.1, le=10.0)] = 1.0
     aec_enabled: bool = True
+    aec_filter_multiplier: Annotated[int, Field(ge=5, le=100)] = 30
     stereo_split: bool = False
     mix_ratio: Annotated[float, Field(ge=0.0, le=1.0)] = 0.5
 
@@ -232,6 +233,7 @@ def _config_to_toml(config: UserConfig) -> str:
     lines.append(f"mic_gain = {config.audio.mic_gain}")
     lines.append(f"loopback_gain = {config.audio.loopback_gain}")
     lines.append(f"aec_enabled = {str(config.audio.aec_enabled).lower()}")
+    lines.append(f"aec_filter_multiplier = {config.audio.aec_filter_multiplier}")
     lines.append(f"stereo_split = {str(config.audio.stereo_split).lower()}")
     lines.append(f"mix_ratio = {config.audio.mix_ratio}")
     lines.append("")
@@ -292,6 +294,8 @@ def update_user_config(key: str, value: str) -> UserConfig:
             config.audio.loopback_gain = float(value)
         elif field == "aec_enabled":
             config.audio.aec_enabled = value.lower() in ("true", "1", "yes", "on")
+        elif field == "aec_filter_multiplier":
+            config.audio.aec_filter_multiplier = int(value)
         elif field == "stereo_split":
             config.audio.stereo_split = value.lower() in ("true", "1", "yes", "on")
         elif field == "mix_ratio":

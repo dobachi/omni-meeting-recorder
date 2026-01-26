@@ -46,6 +46,7 @@ class TestAudioConfig:
         assert config.mic_gain == 1.5
         assert config.loopback_gain == 1.0
         assert config.aec_enabled is True
+        assert config.aec_filter_multiplier == 30
         assert config.stereo_split is False
         assert config.mix_ratio == 0.5
 
@@ -73,6 +74,21 @@ class TestAudioConfig:
 
         with pytest.raises(ValidationError):
             AudioConfig(mix_ratio=1.1)
+
+    def test_aec_filter_multiplier_validation(self) -> None:
+        """Test AEC filter multiplier validation."""
+        # Valid bounds
+        AudioConfig(aec_filter_multiplier=5)
+        AudioConfig(aec_filter_multiplier=100)
+        AudioConfig(aec_filter_multiplier=30)  # default
+
+        # Invalid: too low
+        with pytest.raises(ValidationError):
+            AudioConfig(aec_filter_multiplier=4)
+
+        # Invalid: too high
+        with pytest.raises(ValidationError):
+            AudioConfig(aec_filter_multiplier=101)
 
 
 class TestOutputConfig:
@@ -234,6 +250,14 @@ class TestUpdateConfig:
         config = update_user_config("audio.aec_enabled", "false")
         assert config.audio.aec_enabled is False
 
+    def test_update_audio_aec_filter_multiplier(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Test updating audio.aec_filter_multiplier setting."""
+        monkeypatch.setenv("OMR_CONFIG", str(tmp_path / "config.toml"))
+        config = update_user_config("audio.aec_filter_multiplier", "50")
+        assert config.audio.aec_filter_multiplier == 50
+
     def test_update_output_format(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
@@ -281,6 +305,12 @@ class TestGetConfigValue:
         config = UserConfig(audio=AudioConfig(mic_gain=2.0))
         assert get_config_value(config, "audio.mic_gain") == 2.0
         assert get_config_value(config, "audio.aec_enabled") is True
+        assert get_config_value(config, "audio.aec_filter_multiplier") == 30
+
+    def test_get_audio_aec_filter_multiplier_custom(self) -> None:
+        """Test getting custom aec_filter_multiplier value."""
+        config = UserConfig(audio=AudioConfig(aec_filter_multiplier=50))
+        assert get_config_value(config, "audio.aec_filter_multiplier") == 50
 
     def test_get_output_value(self) -> None:
         """Test getting output config values."""

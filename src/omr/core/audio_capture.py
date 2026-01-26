@@ -40,6 +40,7 @@ class RecordingSession:
     loopback_device: AudioDevice | None = None
     stereo_split: bool = True  # For BOTH mode: True=left:mic/right:system
     aec_enabled: bool = False  # For BOTH mode: Enable acoustic echo cancellation
+    aec_filter_multiplier: int = 30  # AEC filter strength (5-100, higher = stronger)
     mic_gain: float = 1.5  # Microphone gain multiplier
     loopback_gain: float = 1.0  # System audio gain multiplier
     mix_ratio: float = 0.5  # Mic/system mix ratio (0.0-1.0, higher = more mic)
@@ -184,6 +185,7 @@ class AudioCapture(AudioCaptureBase):
         loopback_device_index: int | None = None,
         stereo_split: bool = True,
         aec_enabled: bool = False,
+        aec_filter_multiplier: int = 30,
         mic_gain: float = 1.5,
         loopback_gain: float = 1.0,
         mix_ratio: float = 0.5,
@@ -199,6 +201,7 @@ class AudioCapture(AudioCaptureBase):
             loopback_device_index: Specific loopback device index (default if None)
             stereo_split: For BOTH mode - True: left=mic, right=system. False: mixed.
             aec_enabled: For BOTH mode - Enable acoustic echo cancellation.
+            aec_filter_multiplier: AEC filter strength multiplier (5-100, default: 30).
             mic_gain: Microphone gain multiplier.
             loopback_gain: System audio gain multiplier.
             mix_ratio: Mic/system mix ratio (0.0-1.0, higher = more mic).
@@ -243,6 +246,7 @@ class AudioCapture(AudioCaptureBase):
             loopback_device=loopback_device,
             stereo_split=stereo_split,
             aec_enabled=aec_enabled,
+            aec_filter_multiplier=aec_filter_multiplier,
             mic_gain=mic_gain,
             loopback_gain=loopback_gain,
             mix_ratio=mix_ratio,
@@ -367,6 +371,7 @@ class AudioCapture(AudioCaptureBase):
                             stop_event=session.stop_event,
                             stereo_split=session.stereo_split,
                             aec_enabled=session.aec_enabled,
+                            aec_filter_multiplier=session.aec_filter_multiplier,
                             mic_gain=session.mic_gain,
                             loopback_gain=session.loopback_gain,
                             mix_ratio=session.mix_ratio,

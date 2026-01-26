@@ -11,7 +11,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
-from omr.config.settings import AudioFormat, RecordingMode
+from omr.config.settings import AudioFormat, RecordingMode, load_user_config
 from omr.core.aec_processor import is_aec_available
 from omr.core.audio_capture import AudioCapture, RecordingSession
 from omr.core.device_errors import DeviceError, DeviceErrorType
@@ -180,6 +180,13 @@ def start(
         "--aec/--no-aec",
         help="Enable acoustic echo cancellation (requires pyaec)",
     ),
+    aec_strength: Annotated[
+        int | None,
+        typer.Option(
+            "--aec-strength",
+            help="AEC filter strength multiplier (5-100, higher = stronger echo cancellation)",
+        ),
+    ] = None,
     mic_gain: Annotated[
         float, typer.Option("--mic-gain", help="Microphone gain multiplier (default: 1.5)")
     ] = 1.5,
@@ -249,6 +256,13 @@ def start(
         console.print()
         aec_enabled = False
 
+    # Determine AEC filter multiplier (from CLI option or config file)
+    if aec_strength is not None:
+        aec_filter_multiplier = max(5, min(100, aec_strength))
+    else:
+        user_config = load_user_config()
+        aec_filter_multiplier = user_config.audio.aec_filter_multiplier
+
     # Determine recording mode
     # Priority: --loopback-only / --mic-only > -l -m > default (BOTH)
     if loopback_only and mic_only:
@@ -317,6 +331,7 @@ def start(
             loopback_device_index=loopback_device,
             stereo_split=stereo_split,
             aec_enabled=aec_enabled,
+            aec_filter_multiplier=aec_filter_multiplier,
             mic_gain=mic_gain,
             loopback_gain=loopback_gain,
             mix_ratio=mix_ratio,
