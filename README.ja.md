@@ -121,6 +121,19 @@ pip install omni-meeting-recorder
 omr --version
 ```
 
+### アップグレード
+
+```powershell
+# pip
+pip install --upgrade omni-meeting-recorder
+
+# uv tool
+uv tool upgrade omni-meeting-recorder
+
+# pipx
+pipx upgrade omni-meeting-recorder
+```
+
 ## 使い方
 
 ```bash
