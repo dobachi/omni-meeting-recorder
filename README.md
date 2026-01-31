@@ -54,10 +54,15 @@ Download the pre-built portable version from [Releases](https://github.com/dobac
 If you have `uv` installed, you can try omr immediately:
 
 ```bash
-uvx -p 3.13 --from git+https://github.com/dobachi/omni-meeting-recorder.git omr start
+uvx --from omni-meeting-recorder omr start
 ```
 
-Note: `-p 3.13` specifies Python version (3.11-3.13 supported).
+Or install as a global tool:
+
+```bash
+uv tool install omni-meeting-recorder
+omr start
+```
 
 ### 1. Install Python
 
@@ -109,11 +114,8 @@ uv run omr --help
 #### Option B: Install via pip (for users)
 
 ```powershell
-# Install from PyPI (after publication)
+# Install from PyPI
 pip install omni-meeting-recorder
-
-# Or install directly from GitHub
-pip install git+https://github.com/dobachi/omni-meeting-recorder.git
 
 # Verify installation
 omr --version
@@ -363,7 +365,7 @@ $env:UV_NATIVE_TLS = "true"
 [Environment]::SetEnvironmentVariable("UV_NATIVE_TLS", "true", "User")
 
 # Then run uv/uvx commands as usual
-uvx -p 3.13 --from git+https://github.com/dobachi/omni-meeting-recorder.git omr --help
+uvx --from omni-meeting-recorder omr --help
 ```
 
 **Solution 2: Specify Certificate File Directly**

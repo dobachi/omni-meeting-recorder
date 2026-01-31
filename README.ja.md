@@ -54,10 +54,15 @@ English: [Concept](docs/CONCEPT.md) | [Technical Design](docs/DESIGN.md) | [Cont
 `uv`がインストールされていれば、すぐに試せます：
 
 ```bash
-uvx -p 3.13 --from git+https://github.com/dobachi/omni-meeting-recorder.git omr start
+uvx --from omni-meeting-recorder omr start
 ```
 
-注: `-p 3.13`でPythonバージョンを指定（3.11-3.13対応）。
+グローバルツールとしてインストールする場合：
+
+```bash
+uv tool install omni-meeting-recorder
+omr start
+```
 
 ### 1. Pythonのインストール
 
@@ -109,11 +114,8 @@ uv run omr --help
 #### 方法B: pipで直接インストール（ユーザー向け）
 
 ```powershell
-# PyPIからインストール（公開後）
+# PyPIからインストール
 pip install omni-meeting-recorder
-
-# または、GitHubから直接インストール
-pip install git+https://github.com/dobachi/omni-meeting-recorder.git
 
 # 動作確認
 omr --version
