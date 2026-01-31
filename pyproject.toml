@@ -30,6 +30,13 @@ dependencies = [
     "pyaec>=1.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/dobachi/omni-meeting-recorder"
+Documentation = "https://github.com/dobachi/omni-meeting-recorder#readme"
+Repository = "https://github.com/dobachi/omni-meeting-recorder.git"
+Issues = "https://github.com/dobachi/omni-meeting-recorder/issues"
+Changelog = "https://github.com/dobachi/omni-meeting-recorder/blob/main/CHANGELOG.md"
+
 [project.scripts]
 omr = "omr.cli.main:app"
 
