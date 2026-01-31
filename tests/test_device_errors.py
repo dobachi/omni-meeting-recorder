@@ -1,6 +1,5 @@
 """Tests for device error handling."""
 
-import pytest
 
 from omr.core.device_errors import DeviceError, DeviceErrorType
 
@@ -149,7 +148,7 @@ class TestDeviceErrorRecovery:
             "mic", OSError(-9996, "Device disconnected")
         )
         # Set errno manually for the test
-        setattr(error, "can_recover", True)
+        error.can_recover = True
         assert error.can_recover is True
 
     def test_unknown_error_not_recoverable(self) -> None:

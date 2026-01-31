@@ -1,9 +1,6 @@
 """Integration tests for device disconnect handling."""
 
-import threading
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 from omr.core.audio_capture import RecordingSession, RecordingState
 from omr.core.device_errors import DeviceError, DeviceErrorType
@@ -41,6 +38,7 @@ class TestRecordingSessionDeviceError:
     def test_set_device_error_callback(self) -> None:
         """Test setting device error callback."""
         from pathlib import Path
+
         from omr.config.settings import RecordingMode
 
         session = RecordingSession(
@@ -75,6 +73,7 @@ class TestRecordingSessionDeviceError:
     def test_handle_device_error_without_callback(self) -> None:
         """Test handling device error without a callback set."""
         from pathlib import Path
+
         from omr.config.settings import RecordingMode
 
         session = RecordingSession(
@@ -282,6 +281,7 @@ class TestDeviceDisconnectSimulation:
     def test_error_callback_invocation(self) -> None:
         """Test that error callback is invoked on device disconnect."""
         from pathlib import Path
+
         from omr.config.settings import RecordingMode
 
         session = RecordingSession(
@@ -312,6 +312,7 @@ class TestDeviceDisconnectSimulation:
     def test_partial_save_flag_set(self) -> None:
         """Test that partial save flag is set after device error."""
         from pathlib import Path
+
         from omr.config.settings import RecordingMode
 
         session = RecordingSession(
