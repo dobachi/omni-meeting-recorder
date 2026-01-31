@@ -48,9 +48,7 @@ class AECProcessor:
             RuntimeError: If pyaec is not installed.
         """
         if not is_aec_available():
-            raise RuntimeError(
-                "pyaec is not installed. Install with: uv sync"
-            )
+            raise RuntimeError("pyaec is not installed. Install with: uv sync")
 
         from pyaec import Aec
 
@@ -114,8 +112,7 @@ class AECProcessor:
 
         # Process complete frames
         while (
-            len(self._mic_buffer) >= self._frame_size
-            and len(self._ref_buffer) >= self._frame_size
+            len(self._mic_buffer) >= self._frame_size and len(self._ref_buffer) >= self._frame_size
         ):
             mic_frame = self._mic_buffer[: self._frame_size]
             ref_frame = self._ref_buffer[: self._frame_size]

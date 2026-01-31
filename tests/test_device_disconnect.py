@@ -1,7 +1,5 @@
 """Integration tests for device disconnect handling."""
 
-
-
 from omr.core.audio_capture import RecordingSession, RecordingState
 from omr.core.device_errors import DeviceError, DeviceErrorType
 from omr.core.device_manager import AudioDevice, DeviceManager, DeviceType

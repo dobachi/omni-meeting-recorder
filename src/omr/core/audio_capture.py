@@ -118,9 +118,7 @@ class RecordingSession:
         if loopback_device is not None:
             self.loopback_device = loopback_device
 
-    def set_device_error_callback(
-        self, callback: Callable[[DeviceError], None] | None
-    ) -> None:
+    def set_device_error_callback(self, callback: Callable[[DeviceError], None] | None) -> None:
         """Set the callback to be invoked when a device error occurs.
 
         Args:
@@ -230,9 +228,7 @@ class AudioCapture(AudioCaptureBase):
 
         if mode in (RecordingMode.LOOPBACK, RecordingMode.BOTH):
             if loopback_device_index is not None:
-                loopback_device = self._device_manager.get_device_by_index(
-                    loopback_device_index
-                )
+                loopback_device = self._device_manager.get_device_by_index(loopback_device_index)
             else:
                 loopback_device = self._device_manager.get_default_loopback_device()
 
@@ -337,9 +333,9 @@ class AudioCapture(AudioCaptureBase):
                 elif session.mode == RecordingMode.BOTH:
                     if session.mic_device and session.loopback_device:
 
-                        def on_dual_device_switch() -> (
-                            tuple[AudioDevice | None, AudioDevice | None]
-                        ):
+                        def on_dual_device_switch() -> tuple[
+                            AudioDevice | None, AudioDevice | None
+                        ]:
                             """Callback for dual device switching."""
                             mic, loopback = session.get_pending_switch()
                             if mic:

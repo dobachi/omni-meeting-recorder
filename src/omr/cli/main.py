@@ -51,9 +51,7 @@ def start_recording(
     loopback_only: bool = typer.Option(
         False, "--loopback-only", "-L", help="Record system audio only"
     ),
-    mic_only: bool = typer.Option(
-        False, "--mic-only", "-M", help="Record microphone only"
-    ),
+    mic_only: bool = typer.Option(False, "--mic-only", "-M", help="Record microphone only"),
     output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
     mic_device: str | None = typer.Option(
         None, "--mic-device", help="Microphone device (index or name)"
@@ -87,9 +85,8 @@ def start_recording(
     mix_ratio: Annotated[
         float | None,
         typer.Option(
-            "--mix-ratio",
-            help="Mic/system audio mix ratio (0.0-1.0). Higher = more mic."
-        )
+            "--mix-ratio", help="Mic/system audio mix ratio (0.0-1.0). Higher = more mic."
+        ),
     ] = None,
     output_format: Annotated[
         AudioFormat | None, typer.Option("--format", "-f", help="Output format (wav/mp3)")

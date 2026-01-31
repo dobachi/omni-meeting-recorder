@@ -129,9 +129,8 @@ class DeviceManager:
             elif channels_in > 0:
                 # Check if this is the default input device by index or name
                 is_default_input = (i == default_input) or (
-                    default_input_name and (
-                        name in default_input_name or default_input_name in name
-                    )
+                    default_input_name
+                    and (name in default_input_name or default_input_name in name)
                 )
                 device = AudioDevice(
                     index=i,

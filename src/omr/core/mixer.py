@@ -217,7 +217,7 @@ class AudioMixer:
             # Multi-channel: average all channels
             mono = []
             for i in range(0, len(samples), channels):
-                chunk = samples[i:i + channels]
+                chunk = samples[i : i + channels]
                 if chunk:
                     mono.append(sum(chunk) // len(chunk))
             return mono

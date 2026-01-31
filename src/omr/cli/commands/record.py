@@ -156,15 +156,11 @@ def start(
     loopback: bool = typer.Option(
         False, "--loopback", "-l", help="Include system audio", hidden=True
     ),
-    mic: bool = typer.Option(
-        False, "--mic", "-m", help="Include microphone", hidden=True
-    ),
+    mic: bool = typer.Option(False, "--mic", "-m", help="Include microphone", hidden=True),
     loopback_only: bool = typer.Option(
         False, "--loopback-only", "-L", help="Record system audio only"
     ),
-    mic_only: bool = typer.Option(
-        False, "--mic-only", "-M", help="Record microphone only"
-    ),
+    mic_only: bool = typer.Option(False, "--mic-only", "-M", help="Record microphone only"),
     output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
     mic_device: int | None = typer.Option(None, "--mic-device", help="Microphone device index"),
     loopback_device: int | None = typer.Option(
@@ -196,16 +192,13 @@ def start(
     mix_ratio: Annotated[
         float,
         typer.Option(
-            "--mix-ratio",
-            help="Mic/system audio mix ratio (0.0-1.0). Higher = more mic."
-        )
+            "--mix-ratio", help="Mic/system audio mix ratio (0.0-1.0). Higher = more mic."
+        ),
     ] = 0.5,
     output_format: Annotated[
         AudioFormat, typer.Option("--format", "-f", help="Output format (wav/mp3)")
     ] = AudioFormat.MP3,
-    bitrate: Annotated[
-        int, typer.Option("--bitrate", "-b", help="MP3 bitrate in kbps")
-    ] = 128,
+    bitrate: Annotated[int, typer.Option("--bitrate", "-b", help="MP3 bitrate in kbps")] = 128,
     keep_wav: Annotated[
         bool,
         typer.Option("--keep-wav", help="Keep WAV file after MP3 conversion"),
@@ -235,9 +228,7 @@ def start(
 
     # Warn if --keep-wav used without --post-convert
     if keep_wav and not post_convert:
-        console.print(
-            "[yellow]Warning:[/yellow] --keep-wav has no effect without --post-convert."
-        )
+        console.print("[yellow]Warning:[/yellow] --keep-wav has no effect without --post-convert.")
         console.print()
 
     # Check lameenc availability for MP3 format
@@ -249,9 +240,7 @@ def start(
     # Check AEC availability
     aec_enabled = aec
     if aec and not is_aec_available():
-        console.print(
-            "[yellow]Warning:[/yellow] pyaec is not installed. AEC will be disabled."
-        )
+        console.print("[yellow]Warning:[/yellow] pyaec is not installed. AEC will be disabled.")
         console.print("[dim]Install with: uv sync[/dim]")
         console.print()
         aec_enabled = False
@@ -287,9 +276,7 @@ def start(
     # Show AEC status for BOTH mode
     if mode == RecordingMode.BOTH:
         if aec_enabled:
-            console.print(
-                "[cyan]Info:[/cyan] Acoustic Echo Cancellation (AEC) is enabled."
-            )
+            console.print("[cyan]Info:[/cyan] Acoustic Echo Cancellation (AEC) is enabled.")
             console.print()
         else:
             console.print(

@@ -188,10 +188,7 @@ class TestRecordingSessionDeviceSwitching:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=request_switch, args=(d,))
-            for d in new_devices
-        ]
+        threads = [threading.Thread(target=request_switch, args=(d,)) for d in new_devices]
 
         for t in threads:
             t.start()

@@ -1,6 +1,5 @@
 """Tests for device manager."""
 
-
 from omr.core.device_manager import AudioDevice, DeviceManager, DeviceType
 
 

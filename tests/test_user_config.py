@@ -103,9 +103,7 @@ class TestOutputConfig:
 
     def test_custom_values(self) -> None:
         """Test custom output config values."""
-        config = OutputConfig(
-            format=AudioFormat.WAV, bitrate=192, directory="~/Recordings"
-        )
+        config = OutputConfig(format=AudioFormat.WAV, bitrate=192, directory="~/Recordings")
         assert config.format == AudioFormat.WAV
         assert config.bitrate == 192
         assert config.directory == "~/Recordings"
@@ -177,9 +175,7 @@ class TestConfigFileOperations:
         config = load_user_config()
         assert config == UserConfig.default()
 
-    def test_save_and_load_config(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_save_and_load_config(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """Test saving and loading config file."""
         config_path = tmp_path / "config.toml"
         monkeypatch.setenv("OMR_CONFIG", str(config_path))
@@ -204,9 +200,7 @@ class TestConfigFileOperations:
         assert loaded.output.format == AudioFormat.WAV
         assert loaded.output.bitrate == 256
 
-    def test_reset_config(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_reset_config(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """Test resetting config to defaults."""
         config_path = tmp_path / "config.toml"
         monkeypatch.setenv("OMR_CONFIG", str(config_path))
@@ -226,17 +220,13 @@ class TestConfigFileOperations:
 class TestUpdateConfig:
     """Tests for update_user_config function."""
 
-    def test_update_device_mic(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_update_device_mic(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """Test updating device.mic setting."""
         monkeypatch.setenv("OMR_CONFIG", str(tmp_path / "config.toml"))
         config = update_user_config("device.mic", "New Microphone")
         assert config.device.mic == "New Microphone"
 
-    def test_update_audio_mic_gain(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_update_audio_mic_gain(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """Test updating audio.mic_gain setting."""
         monkeypatch.setenv("OMR_CONFIG", str(tmp_path / "config.toml"))
         config = update_user_config("audio.mic_gain", "2.5")
@@ -258,9 +248,7 @@ class TestUpdateConfig:
         config = update_user_config("audio.aec_filter_multiplier", "50")
         assert config.audio.aec_filter_multiplier == 50
 
-    def test_update_output_format(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_update_output_format(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """Test updating output.format setting."""
         monkeypatch.setenv("OMR_CONFIG", str(tmp_path / "config.toml"))
         config = update_user_config("output.format", "wav")
@@ -274,17 +262,13 @@ class TestUpdateConfig:
         with pytest.raises(ValueError, match="Invalid key format"):
             update_user_config("invalid_key", "value")
 
-    def test_update_unknown_section(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_update_unknown_section(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """Test updating unknown section raises error."""
         monkeypatch.setenv("OMR_CONFIG", str(tmp_path / "config.toml"))
         with pytest.raises(ValueError, match="Unknown section"):
             update_user_config("unknown.field", "value")
 
-    def test_update_unknown_field(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_update_unknown_field(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """Test updating unknown field raises error."""
         monkeypatch.setenv("OMR_CONFIG", str(tmp_path / "config.toml"))
         with pytest.raises(ValueError, match="Unknown"):

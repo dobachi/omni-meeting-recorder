@@ -76,9 +76,7 @@ class TestAECProcessorWithMock:
         result = processor.process_samples([], [])
         assert result == []
 
-    def test_process_samples_buffering(
-        self, processor: AECProcessor, mock_aec: MagicMock
-    ) -> None:
+    def test_process_samples_buffering(self, processor: AECProcessor, mock_aec: MagicMock) -> None:
         """Test process_samples returns same length as input (pass-through when buffering)."""
         # Input less than frame_size
         mic = [1] * 100

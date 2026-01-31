@@ -91,9 +91,7 @@ def list_devices(
     console.print("Usage examples:")
     console.print("  [cyan]omr start --loopback[/cyan]          # Record system audio")
     console.print("  [cyan]omr start --mic[/cyan]               # Record microphone")
-    console.print(
-        "  [cyan]omr start --loopback --loopback-device 5[/cyan]  # Use specific device"
-    )
+    console.print("  [cyan]omr start --loopback --loopback-device 5[/cyan]  # Use specific device")
 
 
 @app.command("test")

@@ -1,6 +1,5 @@
 """Tests for device error handling."""
 
-
 from omr.core.device_errors import DeviceError, DeviceErrorType
 
 
@@ -38,14 +37,10 @@ class TestDeviceError:
 
     def test_is_disconnection_property(self) -> None:
         """Test is_disconnection property."""
-        disconnected = DeviceError(
-            source="mic", error_type=DeviceErrorType.DISCONNECTED
-        )
+        disconnected = DeviceError(source="mic", error_type=DeviceErrorType.DISCONNECTED)
         assert disconnected.is_disconnection is True
 
-        access_denied = DeviceError(
-            source="mic", error_type=DeviceErrorType.ACCESS_DENIED
-        )
+        access_denied = DeviceError(source="mic", error_type=DeviceErrorType.ACCESS_DENIED)
         assert access_denied.is_disconnection is False
 
         unknown = DeviceError(source="mic", error_type=DeviceErrorType.UNKNOWN)
@@ -144,9 +139,7 @@ class TestDeviceErrorRecovery:
 
     def test_disconnected_error_is_recoverable(self) -> None:
         """Test that disconnected errors are marked as recoverable."""
-        error = DeviceError.from_exception(
-            "mic", OSError(-9996, "Device disconnected")
-        )
+        error = DeviceError.from_exception("mic", OSError(-9996, "Device disconnected"))
         # Set errno manually for the test
         error.can_recover = True
         assert error.can_recover is True
