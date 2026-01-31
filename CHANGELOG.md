@@ -7,22 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2025-02-01
+
 ### Added
 - AEC filter strength tuning option
+- Handle simultaneous multiple device failures
+- CI workflow for lint, typecheck, and test
+- Auto-switch to alternative device on disconnection
+- PyPI publishing support with OIDC trusted publishing
 
 ### Fixed
 - Ensure recording continues after batch device switch
 - Properly pause reader threads during batch device switch
 - Resolve mypy type check errors
-
-## [0.7.2] - 2025-01-XX
-
-### Added
-- Handle simultaneous multiple device failures
-- CI workflow for lint, typecheck, and test
-- Auto-switch to alternative device on disconnection
-
-### Fixed
 - Stop recording immediately on device error
 
 ## [0.7.1] - 2025-01-XX
